@@ -102,28 +102,10 @@ range.addEventListener("input", function(){
             var blueValue = blueSum / numPixels;
 
             /*
-                Put our average values back into imagedata
-             */
-            for (var z = 0; z < pixelBlock.data.length; z++) {
-                switch(z%4) {
-                    case 0:
-                        pixelBlock.data[z] = redValue;
-                        break;
-                    case 1:
-                        pixelBlock.data[z] = greenValue;
-                        break;
-                    case 2:
-                        pixelBlock.data[z] = blueValue;
-                        break;
-                    default:
-                        break;
-                }
-            }
-
-            /*
                 Write this new pixelBlock out to the image and then update our X,Y pointer to the next position
              */
-            ctx.putImageData(pixelBlock, currX, currY);
+            ctx.fillStyle = "rgb("+redValue.toFixed()+","+greenValue.toFixed()+","+blueValue.toFixed()+")";
+            ctx.fillRect(currX, currY, blockWidth, blockHeight);
             currX += blockWidth;
             if(currX >= totalWidth) {
                 currX = 0;
