@@ -6,3 +6,5 @@ I simply attempted this because I had the idea for an algorithm to copy the  "mo
 The algorithm takes any image input by a user and breaks it into even tiles based on a slider input. It will then find an average RGB value for the pixels in that block and then set the block to that average value and redraw it on an HTML5 canvas on the fly. 
 
 As of first versioning, tiling a large image (1600x1200 72dpi) into 200 even tiles takes about 1.5 seconds on average, but several improvements to this are in the works. At some point, I plan on abstracting these features into an image manipulation library that can be used to duplicate various other features, perhaps like blurring, cartoonizing, edge detection, etc. 
+
+You can test this script and see how it's being used by simply downloading the three files and opening the index.html file in your preferred browser (tested in Chrome). 
