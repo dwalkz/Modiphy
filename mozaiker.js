@@ -1,11 +1,13 @@
 var range = document.getElementById("userInput");       //The input range which determines our tile size
 var tileSize = document.getElementById("tileSize");     //A debugging output to show what our current tile divisor is
+var timer = document.getElementById("timer");           //Debug output to show how long it took to execute drawing
 var fileInput = document.getElementById("imgInput");    //File input element to take image from user which we want to mosaic
 var canvas = document.getElementById("imageDisplay");   //The canvas to be drawn on
 var ctx = canvas.getContext("2d");                      //Variable to hold the 2d context of our canvas
 
 var imgObj = 0;                                         //imgObj will eventually be an Image object
 var drawing = false;                                    //A flag to determine whether or not we're currently drawing
+var pixelSpacing = 10;                                  //How many pixels we want to skip when averaging values
 
 /*
     When a file is uploaded, set our global imgObj to be a copy of this uploaded image file
@@ -22,10 +24,18 @@ fileInput.addEventListener("change", function() {
     imgObj = new Image();
     imgObj.src = src;
     imgObj.onload = function(){
-        canvas.width = image.width;
-        canvas.height = image.height;
+        canvas.width = imgObj.width;
+        canvas.height = imgObj.height;
         ctx.drawImage(imgObj, 0, 0);
     }
+});
+
+/*
+    Use an additional event listener on input of the range so our divisor debug output always updates
+    Regardless of whether or not we're drawing
+ */
+range.addEventListener("input", function(){
+    tileSize.innerHTML = "Tile Divisor: "+range.value;
 });
 
 /*
@@ -38,21 +48,20 @@ range.addEventListener("input", function(){
         return;                                                     //Don't start another drawing. This prevents resource
     }                                                               //misuse when dragging happens before we can finish drawing
 
-    tileSize.innerHTML = "Tile Divisor: "+range.value;              //Output the current divisor to the debug output
-
-    canvas.width = image.width;                                     //Redraw the canvas with our imgObj so we're using
-    canvas.height = image.height;                                   //a fresh image to tile.
-    ctx.drawImage(imgObj, 0, 0);
-
-    var divisor = range.value;
-    var totalWidth = image.width;
-    var totalHeight = image.height;
-    var blockWidth = Math.ceil(totalWidth / divisor);               //Ceiling here prevents problems with fractional
-    var blockHeight = Math.ceil(totalHeight / divisor);             //block sizes preventing even mosaic tiles
-
     if(imgObj !== 0) {                                              //Ensure we have an image
         drawing = true;                                             //Set our drawing flag
-        var oldPixels = [];                                         //Use an array to hold all of our pixel values
+        var start = new Date().getTime();
+
+        canvas.width = imgObj.width;                                //Redraw the canvas with our imgObj so we're using
+        canvas.height = imgObj.height;                              //a fresh image to tile.
+        ctx.drawImage(imgObj, 0, 0);
+
+        var divisor = range.value;
+        var totalWidth = imgObj.width;
+        var totalHeight = imgObj.height;
+        var blockWidth = Math.ceil(totalWidth / divisor);           //Ceiling here prevents problems with fractional
+        var blockHeight = Math.ceil(totalHeight / divisor);         //block sizes preventing even mosaic tiles
+
         var currX = 0;
         var currY = 0;                                              //The current x,y position of our block data
 
@@ -61,28 +70,15 @@ range.addEventListener("input", function(){
             divisor^2 gives us the total number of blocks we should have in the end.
          */
         for(var i = 0; i < Math.pow(divisor, 2); i++) {
-            oldPixels.push(ctx.getImageData(currX, currY, blockWidth, blockHeight));
-            currX += blockWidth;                                    //Grab the current block and then move X to the next position
-            if(currX >= totalWidth) {
-                currX = 0;                                          //If X hits the bound of the image, set it back to
-                currY += blockHeight;                               //the start and set Y to the next row of blocks
-            }
-        }
-
-        /*
-            Loop through our blocks and calculate average RGB values for that block
-        */
-        for (var x = 0; x < oldPixels.length; x++) {
-            var pixelBlock = oldPixels[x];
-
+            //Instead of pushing to an array, just simply update changes in place
+            var pixelBlock = ctx.getImageData(currX, currY, blockWidth, blockHeight);
+            /*
+             Calculate the average values for this block
+             */
             var redSum = 0;
             var greenSum = 0;
             var blueSum = 0;
-            /*
-                Pixels are in array where every four values represents a pixel in [R, G, B, A] format.
-                Therefore, if our index % 4 is 0 then we're on the first value, making it red, and so on.
-                index % 4 is 3 when we're on the alpha channel, which is ignored at this point.
-            */
+            var numPixels = 0;
             for (var y = 0; y < pixelBlock.data.length; y++) {
                 switch(y%4) {
                     case 0:
@@ -95,18 +91,19 @@ range.addEventListener("input", function(){
                         blueSum += pixelBlock.data[y];
                         break;
                     default:
-                        break;
+                        y += 4*pixelSpacing;                //We're on the Alpha, so let's skip ahead by a number of pixels
+                        numPixels++;                        //So that we don't average every pixel, but get close enough
+                        break;                              //This speeds us up, on average, by about 1.2s comparatively
                 }
             }
 
-            var numPixels = pixelBlock.data.length / 4;             //The total number of pixels we checked in this block
-            var redValue = redSum / numPixels;                      //Average is the sum / number of pixels
+            var redValue = redSum / numPixels;
             var greenValue = greenSum / numPixels;
             var blueValue = blueSum / numPixels;
 
             /*
-                 Put the average RGB values back into the pixelblock using same method as above
-            */
+                Put our average values back into imagedata
+             */
             for (var z = 0; z < pixelBlock.data.length; z++) {
                 switch(z%4) {
                     case 0:
@@ -123,19 +120,11 @@ range.addEventListener("input", function(){
                 }
             }
 
-            oldPixels[x] = pixelBlock;
-        }
-
-        /*
-            Use the same method as before to iterate back over our image and reset the pixel data to our newly averaged
-            pixelBlocks.
-        */
-        currX = 0;
-        currY = 0;
-        for(var c = 0; c < Math.pow(divisor, 2); c++) {
-            ctx.putImageData(oldPixels[c], currX, currY);
+            /*
+                Write this new pixelBlock out to the image and then update our X,Y pointer to the next position
+             */
+            ctx.putImageData(pixelBlock, currX, currY);
             currX += blockWidth;
-
             if(currX >= totalWidth) {
                 currX = 0;
                 currY += blockHeight;
@@ -143,5 +132,8 @@ range.addEventListener("input", function(){
         }
 
         drawing = false;                                            //We're no longer drawing
+
+        var end = new Date().getTime();
+        timer.innerHTML = end - start + "ms to execute";         //Output how long in ms it to to draw
     }
 });
