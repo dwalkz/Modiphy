@@ -1,3 +1,7 @@
+//TODO: Turn this into a library callable like (elem).Mozaiker({});
+//TODO: Implement different algorithms. Current is average of pixels in block. Faster may be to find center pixel in block and just use that value
+//TODO: Implement different shapes for the output. Circle, square, triangle, diamond, hex, randomize?
+
 var range = document.getElementById("userInput");       //The input range which determines our tile size
 var tileSize = document.getElementById("tileSize");     //A debugging output to show what our current tile divisor is
 var timer = document.getElementById("timer");           //Debug output to show how long it took to execute drawing
@@ -79,6 +83,7 @@ range.addEventListener("input", function(){
             var greenSum = 0;
             var blueSum = 0;
             var numPixels = 0;
+            //TODO: Can modify to make more readable using y += 4 and then using y, y+1, y+2, y+3 to reference index of rgb values
             for (var y = 0; y < pixelBlock.data.length; y++) {
                 switch(y%4) {
                     case 0:
