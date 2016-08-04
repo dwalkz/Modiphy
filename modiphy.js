@@ -32,7 +32,8 @@
         this.options = {            //Set the default options for a Modiphy object
             filter: "pixelate",     //The filter we want to use on the image
             method: "quick",        //The algorithm used to pixelate
-            divisor: 50             //Determines the block size. Divide the image into 'n' blocks
+            divisor: 50,             //Determines the block size. Divide the image into 'n' blocks
+            debug: false
         };
 
         var canvas = this.canvas = document.createElement("canvas");
@@ -57,6 +58,7 @@
         this.options.filter = options.filter || this.options.filter;
         this.options.method = options.method || this.options.method;
         this.options.divisor = options.divisor || this.options.divisor;
+        this.options.debug = options.debug || this.options.debug;
     };
 
     Modiphy.prototype.render = function( options ) {
@@ -113,6 +115,7 @@
         }
 
         this.drawing = true;
+        var start = new Date().getTime();
 
         //Clear the canvas and redraw the original image on top to clear out old data
         this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
@@ -151,7 +154,11 @@
             }
         }
 
+        var end = new Date().getTime();
         this.drawing = false;
+
+        if(this.options.debug)
+            console.log("Filter: Pixelate\nMethod: Average\nDivisor: "+divisor+"\nNumber of Blocks: "+Math.pow(divisor, 2)+"\nExecution Time: "+(end - start)+"ms");
     }
 
     //TODO: Implement different shapes for the output pixels
@@ -173,6 +180,7 @@
         }
 
         this.drawing = true;
+        var start = new Date().getTime();
 
         this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
         this.ctx.drawImage(this.img, 0, 0);
@@ -185,7 +193,7 @@
 
         for(var i = 0; i < Math.pow(divisor, 2); i++) {
             var currentPixelBlock = this.ctx.getImageData(currX, currY, pixelWidth, pixelHeight).data;
-            var cpi = ((currentPixelBlock.length / 4 / 2) - 1) * 4;
+            var cpi = (Math.floor(currentPixelBlock.length / 4 / 2) - 1) * 4;
             var rVal = currentPixelBlock[ cpi   ];
             var gVal = currentPixelBlock[ cpi+1 ];
             var bVal = currentPixelBlock[ cpi+2 ];
@@ -199,7 +207,11 @@
             }
         }
 
+        var end = new Date().getTime();
         this.drawing = false;
+
+        if(this.options.debug)
+            console.log("Filter: Pixelate\nMethod: Quick\nDivisor: "+divisor+"\nNumber of Blocks: "+Math.pow(divisor, 2)+"\nExecution Time: "+(end - start)+"ms");
     }
 
     HTMLImageElement.prototype.Modiphy = function( options ) {
