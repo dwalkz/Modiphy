@@ -4,21 +4,66 @@
     <link rel='stylesheet' type='text/css' href="style.css">
 </head>
 <body>
-<img id="img1" src="images/test.png"/>
+<img id="img1" src="images/test.png" style="display:none;"/>
+<div id="controls">
+    <form name="controls">
+        <input id="divisorInput" name="divisorInput" oninput="updateDivisorOutput(this)" onchange="updateDivisor(this)" type="range" min="1" value="50" max="200" step="1">
+        <p id="output">
+            <span id="divisor">Divisor: 50</span>
+            <span id="shape">
+                Square<input type="radio" onclick="changeShape(this)" name="shape" value="Square" checked>
+                Circle<input type="radio" onclick="changeShape(this)" name="shape" value="Circle">
+                Diamond<input type="radio" onclick="changeShape(this)" name="shape" value="Diamond">
+            </span>
+            <span id="functionCall">Function Call: x = new Modiphy(document.getElementById("img1");</span></p>
+    </form>
+    <!--
+        TODO: implement live controls for grayscale filters
+    -->
+</div>
 <script type='text/javascript' src='modiphy.js'></script>
 <script type="text/javascript">
     var img;
     var x;
+    var d;
+    var divisorOutput = document.getElementById("divisor");
+    var functionCall = document.getElementById("functionCall");
 
-    if(window.addEventListener) {
-        window.addEventListener('load', init);
-    } else {
-        window.attachEvent("onload", init);
-    }
-
+    window.addEventListener('load', init);
     function init() {
         img = document.getElementById("img1");
+        img.style.display = "block";
         x = new Modiphy(img);
+    }
+
+    function updateDivisorOutput(range) {
+        d = range.value;
+        divisorOutput.innerHTML = "Divisor: "+d;
+    }
+
+    function updateDivisor(range) {
+        x.render({
+            filter: {
+                divisor: d
+            }
+        });
+        functionCall.innerHTML = "Function Call: x.render({filter: {divisor: "+range.value+"});";
+    }
+
+    var prevShape = null;
+    var radios = document.controls.shape;
+    for(var i = 0; i < radios.length; i++){
+        radios[i].onclick = function(){
+            if(this !== prevShape) {
+                prevShape = this;
+                x.render({
+                    filter: {
+                        shape: this.value
+                    }
+                });
+                functionCall.innerHTML = "Function Call: x.render({filter: {shape: "+this.value+"});";
+            }
+        }
     }
 </script>
 </body>

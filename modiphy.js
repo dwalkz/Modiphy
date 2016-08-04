@@ -2,7 +2,7 @@
  Library: Modiphy
  Author: David Gormley
  Date: 2016-08-06T12:22AM
- Version: 0.5.1
+ Version: 0.6.3
 
  Modiphy is an image manipulation library that cna be used on the fly
  to filter images with common Photoshop like filters by using the
@@ -13,11 +13,14 @@
  as is for use. Suggestions welcome at my github:
  https://github.com/dwalkz/Modiphy
  */
-(function(window){
+(function(window, undefined){
     'use strict';
 
-    var version = "0.5.1";
+    var version = "0.6.3";
     var console = window.console;
+
+    var TWO_PI = Math.PI * 2;
+    var QUARTER_PI = Math.PI / 4;
 
     //Check for canvas support
     var canvas = document.createElement("canvas");
@@ -27,13 +30,18 @@
         return;
     }
 
+    //TODO: Implement filter stacking?? Grayscale and pixelate?
     function Modiphy(img, options) {
         this.img = img;
         this.options = {            //Set the default options for a Modiphy object
-            filter: "pixelate",     //The filter we want to use on the image
-            method: "quick",        //The algorithm used to pixelate
-            divisor: 50,             //Determines the block size. Divide the image into 'n' blocks
-            debug: false
+            filter: {               //Filter is an object itself with a name, method, and shape
+                name: "pixel",          //The name of the filter
+                method: "quick",        //The algorithm or method to use, if applicable
+                shape: "square",        //The shape of the output pixels for pixelate
+                divisor: 50,            //Determins the block size in pixelate
+                decompose: "maximum"    //Decompositing algorithm to use
+            },
+            debug: true
         };
 
         var canvas = this.canvas = document.createElement("canvas");
@@ -55,9 +63,13 @@
      Merge options passed into this.render with our default options
      */
     Modiphy.prototype.updateOptions = function(options) {
-        this.options.filter = options.filter || this.options.filter;
-        this.options.method = options.method || this.options.method;
-        this.options.divisor = options.divisor || this.options.divisor;
+        if(options.filter) {
+            this.options.filter.name = options.filter.name || this.options.filter.name;
+            this.options.filter.shape = options.filter.shape || this.options.filter.shape;
+            this.options.filter.method = options.filter.method || this.options.filter.method;
+            this.options.filter.divisor = options.filter.divisor || this.options.filter.divisor;
+            this.options.filter.decompose = options.filter.decompose || this.options.filter.decompose;
+        }
         this.options.debug = options.debug || this.options.debug;
     };
 
@@ -73,9 +85,12 @@
         this.ctx.drawImage(this.img, 0, 0);
 
         //Let's determine how we need to filter the image
-        switch(this.options.filter) {
-            case "pixelate":
+        switch(this.options.filter.name.toLowerCase()) {
+            case "pixel":
                 pixelate.call(this);
+                break;
+            case "grayscale":
+                grayscale.call(this);
                 break;
             default:
                 console.log("No filter or invalid filter given. Pixelating image by default");
@@ -85,20 +100,20 @@
     };
 
     /*
-     Function called by render when filter == "pixelate" to handle
-     checking which method we want to use to pixelate
+     Function called by render when filter == "pixel" to handle
+     checking which pixelMethod we want to use to pixelate
      */
-    function pixelate ( ) {
+    function pixelate() {
         //Determine how we need to pixelate the image whether by using
         //An average or using the quick pixelate cheating method
-        if(this.options.method == "quick") {
+        if(this.options.filter.method.toLowerCase() == "quick") {
             pixelateQuick.call(this);
         } else {
             pixelateAverage.call(this);
         }
     }
 
-    //TODO: Implement different shapes for the output pixels
+    //TODO: Implement a hex shape? I think it sounds cool
     /*!
      A thorough pixelation method which uses a real average RGB value
      of all the pixels in each "pixel block" as determined by the divisor.
@@ -107,7 +122,7 @@
      an average. This process can be time consuming, but is more mathematically
      accurate because of it.
      */
-    function pixelateAverage () {
+    function pixelateAverage() {
         if(this.drawing === true) {
             //If we're already drawing a new image, don't do anything. This prevents resource hogging
             //Since the "average" method can take quite a long time
@@ -121,9 +136,10 @@
         this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
         this.ctx.drawImage(this.img, 0, 0);
 
-        var divisor = this.options.divisor;
+        var divisor = this.options.filter.divisor;
         var pixelWidth = Math.ceil(this.img.width / divisor);
         var pixelHeight = Math.ceil(this.img.height / divisor);
+        var radius = pixelWidth/2;
 
         var currX = 0, currY = 0;
 
@@ -146,7 +162,21 @@
 
             //Draw a new "pixel" in place with our average value
             this.ctx.fillStyle = "rgb("+rVal+", "+gVal+", "+bVal+")";
-            this.ctx.fillRect(currX, currY, pixelWidth, pixelHeight);
+            switch(this.options.filter.shape.toLowerCase()) {
+                case "circle":
+                    this.ctx.clearRect(currX, currY, pixelWidth, pixelHeight); //Clear out this sector now that we don't need it
+                    this.ctx.beginPath();
+                    this.ctx.arc(currX, currY, radius, 0, TWO_PI);
+                    this.ctx.fill();
+                    this.ctx.closePath();
+                    break;
+                case "diamond":
+                    break;
+                default: //square
+                    this.ctx.fillRect(currX, currY, pixelWidth, pixelHeight);
+                    break;
+            }
+
             currX += pixelWidth;
             if(currX >= this.img.width) {
                 currX = 0;
@@ -157,11 +187,10 @@
         var end = new Date().getTime();
         this.drawing = false;
 
-        if(this.options.debug)
-            console.log("Filter: Pixelate\nMethod: Average\nDivisor: "+divisor+"\nNumber of Blocks: "+Math.pow(divisor, 2)+"\nExecution Time: "+(end - start)+"ms");
+        if(this.options.debug === true)
+            console.log("Filter: Pixel\nMethod: Average\nDivisor: "+divisor+"\nNumber of Blocks: "+Math.pow(divisor, 2)+"\nExecution Time: "+(end - start)+"ms");
     }
 
-    //TODO: Implement different shapes for the output pixels
     /*!
      A "cheat" way to emulate pixelation by assuming the important color in
      a given block is always the center-most pixel. Breaks the image down
@@ -174,7 +203,7 @@
 
      This is the default pixelation method for speed
      */
-    function pixelateQuick (){
+    function pixelateQuick(){
         if(this.drawing === true) {
             return;
         }
@@ -185,21 +214,44 @@
         this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
         this.ctx.drawImage(this.img, 0, 0);
 
-        var divisor = this.options.divisor;
+        var divisor = this.options.filter.divisor;
         var pixelWidth = Math.ceil(this.img.width / divisor);
         var pixelHeight = Math.ceil(this.img.height / divisor);
+        var radius = pixelWidth / 2;
 
         var currX = 0, currY = 0;
+        var currentPixelBlock, cpi, rVal, gVal, bVal;
+        var diamond = pixelWidth / Math.SQRT2;
+        var halfDiamond = diamond / 2;
 
         for(var i = 0; i < Math.pow(divisor, 2); i++) {
-            var currentPixelBlock = this.ctx.getImageData(currX, currY, pixelWidth, pixelHeight).data;
-            var cpi = (Math.floor(currentPixelBlock.length / 4 / 2) - 1) * 4;
-            var rVal = currentPixelBlock[ cpi   ];
-            var gVal = currentPixelBlock[ cpi+1 ];
-            var bVal = currentPixelBlock[ cpi+2 ];
+            currentPixelBlock = this.ctx.getImageData(currX, currY, pixelWidth, pixelHeight).data;
+            cpi = (Math.floor(currentPixelBlock.length / 4 / 2) - 1) * 4;
+            rVal = currentPixelBlock[ cpi   ];
+            gVal = currentPixelBlock[ cpi+1 ];
+            bVal = currentPixelBlock[ cpi+2 ];
+
 
             this.ctx.fillStyle = "rgb("+rVal+", "+gVal+", "+bVal+")";
-            this.ctx.fillRect(currX, currY, pixelWidth, pixelHeight);
+            switch(this.options.filter.shape.toLowerCase()) {
+                case "circle":
+                    this.ctx.clearRect(currX, currY, pixelWidth, pixelHeight);
+                    this.ctx.beginPath();
+                    this.ctx.arc(currX, currY, radius, 0, TWO_PI);
+                    this.ctx.fill();
+                    this.ctx.closePath();
+                    break;
+                case "diamond":
+                    this.ctx.clearRect(currX, currY, pixelWidth, pixelHeight);
+                    this.ctx.save();
+                    this.ctx.translate(currX, currY);
+                    this.ctx.rotate(QUARTER_PI);
+                    this.ctx.fillRect(-halfDiamond, -halfDiamond, diamond, diamond);
+                    this.ctx.restore();
+                    break;
+                default: //square
+                    this.ctx.fillRect(currX, currY, pixelWidth, pixelHeight);
+            }
             currX += pixelWidth;
             if(currX >= this.img.width) {
                 currX = 0;
@@ -210,9 +262,191 @@
         var end = new Date().getTime();
         this.drawing = false;
 
-        if(this.options.debug)
-            console.log("Filter: Pixelate\nMethod: Quick\nDivisor: "+divisor+"\nNumber of Blocks: "+Math.pow(divisor, 2)+"\nExecution Time: "+(end - start)+"ms");
+        if(this.options.debug === true)
+            console.log("Filter: Pixel\nMethod: Quick\nDivisor: "+divisor+"\nNumber of Blocks: "+Math.pow(divisor, 2)+"\nExecution Time: "+(end - start)+"ms");
     }
+
+    /*!
+        Handle switching between grayscale algorithms based on input method
+     */
+    function grayscale() {
+        //Determine which method to use grayscale the image
+        switch(this.options.filter.method.toLowerCase()){
+            case "average":
+                grayscaleAvg.call(this);
+                break;
+            case "lightness":
+                grayscaleLight.call(this);
+                break;
+            case "luminosity":
+                grayscaleLumin.call(this);
+                break;
+            case "decompose":
+                grayscaleDecompose.call(this);
+                break;
+            default:
+                console.log("Invalid Grayscale Method given, using average by default");
+                grayscaleAvg.call(this);
+                break;
+
+        }
+    }
+
+    /*!
+        The Average method for grayscale takes the average of the RGB values in
+        each pixel and sets each pixel back to that average. A run-of-the-mill
+        grayscale algorithm
+     */
+    function grayscaleAvg(){
+        if(this.drawing === true) {
+            return;
+        }
+
+        this.drawing = true;
+        var start = new Date().getTime();
+
+        this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+        this.ctx.drawImage(this.img, 0, 0);
+
+        var pixelData = this.ctx.getImageData(0, 0, this.canvas.width, this.canvas.height);
+
+        var r, g, b;
+        for(var i = 0; i < pixelData.data.length; i+=4){
+            r = pixelData.data[ i   ];
+            g = pixelData.data[ i+1 ];
+            b = pixelData.data[ i+2 ];
+
+            pixelData.data[i] = pixelData.data[i+1] = pixelData.data[i+2] = (r+g+b)/3;
+        }
+
+        this.ctx.putImageData(pixelData, 0, 0);
+
+        var end = new Date().getTime();
+        this.drawing = false;
+
+        if(this.options.debug === true){
+            console.log("Filter: Grayscale\nMethod: Average\nExecution Time: "+(end - start)+"ms");
+        }
+    }
+
+    /*!
+        The lightness method takes into account only the most prominent and
+        least prominent colors which tends to lend itself to greater contrast
+        compared to Average. This could also be called "desaturation"
+     */
+    function grayscaleLight(){
+        if(this.drawing === true) {
+            return;
+        }
+
+        this.drawing = true;
+        var start = new Date().getTime();
+
+        this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+        this.ctx.drawImage(this.img, 0, 0);
+
+        var pixelData = this.ctx.getImageData(0, 0, this.canvas.width, this.canvas.height);
+
+        var r, g, b;
+        for(var i = 0; i < pixelData.data.length; i+=4){
+            r = pixelData.data[ i   ];
+            g = pixelData.data[ i+1 ];
+            b = pixelData.data[ i+2 ];
+
+            pixelData.data[i] = pixelData.data[i+1] = pixelData.data[i+2] = (Math.max(r, g, b) + Math.min(r, g, b))/2;
+        }
+
+        this.ctx.putImageData(pixelData, 0, 0);
+
+        var end = new Date().getTime();
+        this.drawing = false;
+
+        if(this.options.debug === true){
+            console.log("Filter: Grayscale\nMethod: Lightness\nExecution Time: "+(end - start)+"ms");
+        }
+    }
+
+    /*!
+        The luminosity method weights each RGB value based on human perception.
+        Since humans are more sensitive to green values, the G value is weighted
+        higher in the end lending itself to a more "realistic" grayscale.
+     */
+    function grayscaleLumin(){
+        if(this.drawing === true) {
+            return;
+        }
+
+        this.drawing = true;
+        var start = new Date().getTime();
+
+        this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+        this.ctx.drawImage(this.img, 0, 0);
+
+        var pixelData = this.ctx.getImageData(0, 0, this.canvas.width, this.canvas.height);
+
+        var r, g, b;
+        for(var i = 0; i < pixelData.data.length; i+=4){
+            r = pixelData.data[ i   ];
+            g = pixelData.data[ i+1 ];
+            b = pixelData.data[ i+2 ];
+
+            pixelData.data[i] = pixelData.data[i+1] = pixelData.data[i+2] = (0.21 * r) + (0.72 * g) + (0.07 * b);
+        }
+
+        this.ctx.putImageData(pixelData, 0, 0);
+
+        var end = new Date().getTime();
+        this.drawing = false;
+
+        if(this.options.debug === true){
+            console.log("Filter: Grayscale\nMethod: Luminosity\nExecution Time: "+(end - start)+"ms");
+        }
+    }
+
+    /*!
+        De-composition of the image means determining which RGB channel is most
+        important for a pixel and then setting all channels to that value.
+
+        Combines with the grayscaleDecompose option to be either maximum or minimum
+        E.g. a pixel with RGB(10, 20, 30) will end up (30, 30, 30) under maximum or
+            (10, 10, 10) under minimum.
+     */
+    function grayscaleDecompose(){
+        if(this.drawing === true) {
+            return;
+        }
+
+        this.drawing = true;
+        var start = new Date().getTime();
+
+        this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+        this.ctx.drawImage(this.img, 0, 0);
+
+        var pixelData = this.ctx.getImageData(0, 0, this.canvas.width, this.canvas.height);
+
+        var r, g, b;
+        for(var i = 0; i < pixelData.data.length; i+=4){
+            r = pixelData.data[ i   ];
+            g = pixelData.data[ i+1 ];
+            b = pixelData.data[ i+2 ];
+
+            if(this.options.filter.decompose.toLowerCase() == "maximum")
+                pixelData.data[i] = pixelData.data[i+1] = pixelData.data[i+2] = Math.max(r, g, b);
+            else
+                pixelData.data[i] = pixelData.data[i+1] = pixelData.data[i+2] = Math.min(r, g, b);
+
+        }
+
+        this.ctx.putImageData(pixelData, 0, 0);
+
+        var end = new Date().getTime();
+        this.drawing = false;
+
+        if(this.options.debug === true){
+            console.log("Filter: Grayscale\nMethod: Luminosity\nExecution Time: "+(end - start)+"ms");
+        }
+    }
+
 
     HTMLImageElement.prototype.Modiphy = function( options ) {
         return new Modiphy(this, options);

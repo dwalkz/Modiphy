@@ -23,40 +23,72 @@ Use the library by grabbing your image element and creating a new Modiphy object
 //Ensure the image has loaded using addEventListener or some other method before attempting to Modiphy it
 var img = document.getElementById("image1");
 var filtered = new Modiphy(img, {
-    filter: "pixelate",
-    method: "quick",
-    divisor: 50
+    filter: {
+        name: "pixel",
+        method: "quick",
+        shape: "square"
+        divisor: 50
+    },
+    debug: false
 });
 ```
-This code will replace the image element with a canvas (keeping the same id/class attributes in place) and will pixelate the image using the Quick method and a divisor of 50. 
+This code will replace the image element with a canvas (keeping the same id/class attributes in place) and will pixelate the image using the Quick method, dividing the image into 50 even rectangles on width and height and output the new pixels as squares.
 
-The above line can also be rewritten as ` filtered = new Modiphy(img) ` since the options used are already default. 
+The above line can also be rewritten as ` filtered = new Modiphy(img) ` since the options used are the defaults. 
 
-After a Modiphy object has been created, you can change any options and recreate it.
+After a Modiphy object has been created, you can change options in place and recreate it. The below line will change the method for pixelation to use the Average and divide into 100 even pixels instead of 50.
 ``` js
 filtered.render({
-   method: "average",
-   divisor: 100
+    filter: {
+        method: "average",
+        divisor: 100
+    }
 });
 ```
 
 ## Options
 The options that can be passed to Modiphy are as follows:
 ``` 
-filter:     (string)    Currently "pixelate" is the only option but we're looking into adding 
-                        blurs, color shifts, glitches, and many other styles.
+filter:     (object)    An object which carries information about the method to be used
+        {
+            name:   (string)    The type of filter to use.
+            method: (string)    The algorithm used in processing the image. 
+            divisor:(int)       For pixel filter, determines size of output pixels
+            shape:  (string)    For pixel filter, the shape of the output pixels. 
+        }
         
-method:     (string)    Combined with pixelate, there's two methods available:
-                        "quick"   - (default) Uses a fast, cheap algorithm to pixelate without looking 
-                        at all pixels in a new block.
-                        "average" - Averages all RGB values in a block to get mathematically accurate
-                        pixelation but takes more time to complete
-                    
-divisor:    (int)       Defaults to 50. For the pixelate filter, the width and height gets
-                        divided by this number to determine the block sizes. E.x. a square
-                        image of 500px by 500px and a divisor of 50 means each new pixel block
-                        will be 10px by 10px. Higher divisor == more detailed pixels
-            
 debug:      (boolean)   Defaults to false. Specifies whether verbose output should be output
                         to the console
+```
+
+Currently, the following filter options are supported.
+```
+name: "pixel"   Pixelates the image in a number of different ways
+   method: 
+        "quick"         (default) A quick and dirty way which simply chooses the center pixel 
+                        of a given block and uses that as the color. Looks accurate but processes
+                        much faster than other methods
+        "average"       A more mathematically accurate algorithm which calculates the average RGB 
+                        values for each pixel in the block. Takes more processing time, but if 
+                        you need an accurate pixelate, this will be your go-to.
+                        
+   divisor:     The number of even divisions an image will be pixelated into. Defaults to 50 
+                so, for example, a 500x500 image would by default be tiled into 10x10 "pixels"
+   shape:       The shape of the output pixels. By default, this is squares, but "circle" and 
+                "diamond" options are also supported. Working on more options for this, like a 
+                hexagon output, or triangular output.
+                
+name: "grayscale"   Just like it says on the tin. Different methods for grayscaling.
+    method:
+        "average"       The quick and dirty way to grayscale by averaging the RGB channels of
+                        each pixel. Easiest, but can tend to lose contrast.
+        "lightness"     A.k.a desaturation. Another method that keeps contrast better.
+        "luminosity"    A more "photo-realistic" algorithm that accounts for the fact
+                        that humans perceive Green more readily than Red or Blue.
+        "decompose"     De-composition involves setting each pixel to either the Max or Min 
+                        of the individial RGB channels. Usually used for artistic effect. This
+                        method to be used in conjuction with the filter.decompose setting descibed below
+    decompose:  
+        "maximum"       When method is "decompose" this will use Maximum Decomposition
+        "minimum"       (default) this will use Minimum Decomposition 
 ```
