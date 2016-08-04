@@ -66,6 +66,8 @@
             this.updateOptions({});
 
         //Draw the image on our canvas
+        this.width = this.canvas.width = this.img.width;
+        this.height = this.canvas.height = this.img.height;
         this.ctx.drawImage(this.img, 0, 0);
 
         //Let's determine how we need to filter the image
@@ -198,6 +200,10 @@
         }
 
         this.drawing = false;
+    }
+
+    HTMLImageElement.prototype.Modiphy = function( options ) {
+        return new Modiphy(this, options);
     }
 
     window.Modiphy = Modiphy;
