@@ -43,20 +43,20 @@ filtered.render({
 ## Options
 The options that can be passed to Modiphy are as follows:
 ``` 
-filter: Currently "pixelate" is the only option but we're looking into adding 
-        blurs, color shifts, glitches, and many other styles.
+filter:     (string)    Currently "pixelate" is the only option but we're looking into adding 
+                        blurs, color shifts, glitches, and many other styles.
         
-method: Combined with pixelate, there's two methods available:
-        "quick"   - (default) Uses a fast, cheap algorithm to pixelate without looking 
-                    at all pixels in a new block.
-        "average" - Averages all RGB values in a block to get mathematically accurate
-                    pixelation but takes more time to complete
+method:     (string)    Combined with pixelate, there's two methods available:
+                        "quick"   - (default) Uses a fast, cheap algorithm to pixelate without looking 
+                        at all pixels in a new block.
+                        "average" - Averages all RGB values in a block to get mathematically accurate
+                        pixelation but takes more time to complete
                     
-divisor: (int) Defaults to 50. For the pixelate filter, the width and height gets
-               divided by this number to determine the block sizes. E.x. a square
-               image of 500px by 500px and a divisor of 50 means each new pixel block
-               will be 10px by 10px. Higher divisor == more detailed pixels
+divisor:    (int)       Defaults to 50. For the pixelate filter, the width and height gets
+                        divided by this number to determine the block sizes. E.x. a square
+                        image of 500px by 500px and a divisor of 50 means each new pixel block
+                        will be 10px by 10px. Higher divisor == more detailed pixels
             
-debug: (boolean) Defaults to false. Specifies whether verbose output should be output
-                 to the console
+debug:      (boolean)   Defaults to false. Specifies whether verbose output should be output
+                        to the console
 ```
