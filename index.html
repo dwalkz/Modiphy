@@ -4,13 +4,22 @@
     <link rel='stylesheet' type='text/css' href="style.css">
 </head>
 <body>
-<canvas id='imageDisplay'></canvas>
-<div id='div1'>
-    <input id='userInput' type='range' min='2' max='400' step='2' value='2'>
-    <input type='file' id='imgInput'>
-    <span id='tileSize'>Tile Divisor: 2</span>
-    <span id='timer'></span>
-</div>
-<script type='text/javascript' src='mozaiker.js'></script>
+<img id="img1" src="test.png"/>
+<script type='text/javascript' src='modiphy.js'></script>
+<script type="text/javascript">
+    var img;
+    var x;
+
+    if(window.addEventListener) {
+        window.addEventListener('load', init);
+    } else {
+        window.attachEvent("onload", init);
+    }
+
+    function init() {
+        img = document.getElementById("img1");
+        x = new Modiphy(img);
+    }
+</script>
 </body>
 </html>
