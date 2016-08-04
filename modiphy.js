@@ -450,7 +450,7 @@
 
     HTMLImageElement.prototype.Modiphy = function( options ) {
         return new Modiphy(this, options);
-    }
+    };
 
     window.Modiphy = Modiphy;
 })(window);
