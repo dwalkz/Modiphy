@@ -36,16 +36,16 @@ This code will replace the image element with a canvas (keeping the same id/clas
 
 The above line can also be rewritten as ` filtered = new Modiphy(img) ` since the options used are the defaults. 
 
-After a Modiphy object has been created, you can change options in place and recreate it. The below line will change the method for pixelation to use the Average and divide into 100 even pixels instead of 50.
+After a Modiphy object has been created, you can change options and recreate it. The below line will reset the image back to the original input and then re-run the method for pixelation to use the Average and divide into 100 even pixels instead of 50.
 ``` js
-filtered.render({
+filtered.resetModiphications().render({
     filter: {
         method: "average",
         divisor: 100
     }
 });
 ```
-
+If `resetModiphications()` is not run before another render, then modifications happen in place. This allows us to "stack" filters on top of each other like `filtered.render({filter: {name: "grayscale"}).render({filter:{name:"pixel"}})` in order to turn the image to black and white and then pixelating it!
 ## Options
 The options that can be passed to Modiphy are as follows:
 ``` 

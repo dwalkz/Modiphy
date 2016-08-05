@@ -1,6 +1,6 @@
 <html>
 <head>
-    <title>Mozaiker</title>
+    <title>Modiphy Lib</title>
     <link rel='stylesheet' type='text/css' href="style.css">
 </head>
 <body>
@@ -9,6 +9,7 @@
     <form name="controls">
         <input id="divisorInput" name="divisorInput" oninput="updateDivisorOutput(this)" onchange="updateDivisor(this)" type="range" min="1" value="50" max="200" step="1">
         <p id="output">
+            <input type="checkbox" name="autoReset" id="autoReset" checked>Auto-reset Image?
             <span id="divisor">Divisor: 50</span>
             <span id="shape">
                 Square<input type="radio" onclick="changeShape(this)" name="shape" value="Square" checked>
@@ -42,12 +43,13 @@
     }
 
     function updateDivisor(range) {
-        x.render({
-            filter: {
-                divisor: d
-            }
-        });
-        functionCall.innerHTML = "Function Call: x.render({filter: {divisor: "+range.value+"});";
+        if(document.getElementById("autoReset").checked){
+            x.resetModiphications().render({filter: {divisor: d}});
+            functionCall.innerHTML = "Function Call: x.resetModiphications().render({filter: {divisor: "+range.value+"});";
+        } else {
+            x.render({filter: {divisor: d}});
+            functionCall.innerHTML = "Function Call: x.render({filter: {divisor: "+range.value+"});";
+        }
     }
 
     var prevShape = null;
@@ -56,12 +58,13 @@
         radios[i].onclick = function(){
             if(this !== prevShape) {
                 prevShape = this;
-                x.render({
-                    filter: {
-                        shape: this.value
-                    }
-                });
-                functionCall.innerHTML = "Function Call: x.render({filter: {shape: "+this.value+"});";
+                if(document.getElementById("autoReset").checked) {
+                    x.resetModiphications().render({filter: {shape: this.value}});
+                    functionCall.innerHTML = "Function Call: x.resetModiphications().render({filter: {shape: "+this.value+"});";
+                } else {
+                    x.render({filter: {shape: this.value}});
+                    functionCall.innerHTML = "Function Call: x.render({filter: {shape: "+this.value+"});";
+                }
             }
         }
     }

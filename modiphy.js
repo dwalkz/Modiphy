@@ -49,14 +49,24 @@
         canvas.className = img.className;
         canvas.id = img.id;
 
-        this.render( options );     //Render (or re-render) the image with a number of options
+        /*
+            Initialize the canvas to the starting image. From here on functions
+            will use the canvas object to draw so that we can stack layers
+            until it's reset
+         */
+        this.width = this.canvas.width = this.img.width;
+        this.height = this.canvas.height = this.img.height;
+        this.ctx.drawImage(this.img, 0, 0);
 
         //Replace the image with a canvas
         img.parentNode.replaceChild(canvas, img);
+
+        this.render( options );     //Render (or re-render) the image with a number of options
     }
 
     Modiphy.prototype.about = function(){
         alert("Modiphy is currently in development version " + version);
+        return this;
     };
 
     /*
@@ -71,6 +81,7 @@
             this.options.filter.decompose = options.filter.decompose || this.options.filter.decompose;
         }
         this.options.debug = options.debug || this.options.debug;
+        return this;
     };
 
     Modiphy.prototype.render = function( options ) {
@@ -80,9 +91,7 @@
             this.updateOptions({});
 
         //Draw the image on our canvas
-        this.width = this.canvas.width = this.img.width;
-        this.height = this.canvas.height = this.img.height;
-        this.ctx.drawImage(this.img, 0, 0);
+        this.ctx.drawImage(this.canvas, 0, 0);
 
         //Let's determine how we need to filter the image
         switch(this.options.filter.name.toLowerCase()) {
@@ -97,7 +106,15 @@
                 pixelate.call(this);
                 break;
         }
+
+        return this;
     };
+
+    Modiphy.prototype.resetModiphications = function() {
+        this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+        this.ctx.drawImage(this.img, 0, 0);
+        return this;
+    }
 
     /*
      Function called by render when filter == "pixel" to handle
@@ -133,8 +150,7 @@
         var start = new Date().getTime();
 
         //Clear the canvas and redraw the original image on top to clear out old data
-        this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-        this.ctx.drawImage(this.img, 0, 0);
+        this.ctx.drawImage(this.canvas, 0, 0);
 
         var divisor = this.options.filter.divisor;
         var pixelWidth = Math.ceil(this.img.width / divisor);
@@ -171,6 +187,12 @@
                     this.ctx.closePath();
                     break;
                 case "diamond":
+                    this.ctx.clearRect(currX, currY, pixelWidth, pixelHeight);
+                    this.ctx.save();
+                    this.ctx.translate(currX, currY);
+                    this.ctx.rotate(QUARTER_PI);
+                    this.ctx.fillRect(-halfDiamond, -halfDiamond, diamond, diamond);
+                    this.ctx.restore();
                     break;
                 default: //square
                     this.ctx.fillRect(currX, currY, pixelWidth, pixelHeight);
@@ -211,8 +233,7 @@
         this.drawing = true;
         var start = new Date().getTime();
 
-        this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-        this.ctx.drawImage(this.img, 0, 0);
+        this.ctx.drawImage(this.canvas, 0, 0);
 
         var divisor = this.options.filter.divisor;
         var pixelWidth = Math.ceil(this.img.width / divisor);
@@ -305,8 +326,7 @@
         this.drawing = true;
         var start = new Date().getTime();
 
-        this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-        this.ctx.drawImage(this.img, 0, 0);
+        this.ctx.drawImage(this.canvas, 0, 0);
 
         var pixelData = this.ctx.getImageData(0, 0, this.canvas.width, this.canvas.height);
 
@@ -342,8 +362,7 @@
         this.drawing = true;
         var start = new Date().getTime();
 
-        this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-        this.ctx.drawImage(this.img, 0, 0);
+        this.ctx.drawImage(this.canvas, 0, 0);
 
         var pixelData = this.ctx.getImageData(0, 0, this.canvas.width, this.canvas.height);
 
@@ -379,8 +398,7 @@
         this.drawing = true;
         var start = new Date().getTime();
 
-        this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-        this.ctx.drawImage(this.img, 0, 0);
+        this.ctx.drawImage(this.canvas, 0, 0);
 
         var pixelData = this.ctx.getImageData(0, 0, this.canvas.width, this.canvas.height);
 
@@ -419,8 +437,7 @@
         this.drawing = true;
         var start = new Date().getTime();
 
-        this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-        this.ctx.drawImage(this.img, 0, 0);
+        this.ctx.drawImage(this.canvas, 0, 0);
 
         var pixelData = this.ctx.getImageData(0, 0, this.canvas.width, this.canvas.height);
 
