@@ -4,31 +4,121 @@
     <link rel='stylesheet' type='text/css' href="style.css">
 </head>
 <body>
-<img id="img1" src="images/test.png" style="display:none;"/>
-<div id="controls">
-    <form name="controls">
-        <input id="divisorInput" name="divisorInput" oninput="updateDivisorOutput(this)" onchange="updateDivisor(this)" type="range" min="1" value="50" max="200" step="1">
-        <p id="output">
-            <input type="checkbox" name="autoReset" id="autoReset" checked>Auto-reset Image?
-            <span id="divisor">Divisor: 50</span>
-            <span id="shape">
-                Square<input type="radio" onclick="changeShape(this)" name="shape" value="Square" checked>
-                Circle<input type="radio" onclick="changeShape(this)" name="shape" value="Circle">
-                Diamond<input type="radio" onclick="changeShape(this)" name="shape" value="Diamond">
-            </span>
-            <span id="functionCall">Function Call: x = new Modiphy(document.getElementById("img1");</span></p>
-    </form>
-    <!--
-        TODO: implement live controls for grayscale filters
-    -->
+<img id="img1" src="images/test-square.png" style="display:none;"/>
+<div id="filterList">
+    <div class="controls">
+        <button type="button" onclick="removeFilter(this)">X</button>
+        <label>Filter:</label>
+        <select class="filterSel" name="filterSel" onchange="updateFilterOptions(this)">
+            <option value="pixel">Pixelate</option>
+            <option value="grayscale">Grayscale</option>
+            <option value="posterize">Posterize</option>
+            <option value="glitch">Glitch</option>
+            <option value="invert">Invert Colors</option>
+            <option value="channelRotate">Channel Rotate</option>
+        </select>
+        <form name="pixel" class="pixelControls">
+            <input class="divisor" name="divisorInput" type="range" min="1" value="50" max="200" step="1"
+                   oninput="updatePixelDivisorOutput(this)">
+            <p class="divisorOutput">Divisor: 50</p>
+            <p class="shape">
+                    Square<input type="radio" name="shape" value="Square" checked>
+                    Circle<input type="radio" name="shape" value="Circle">
+                    Diamond<input type="radio" name="shape" value="Diamond">
+            </p>
+        </form>
+        <form name="grayscale" class="grayscaleControls" style="display:none;">
+            <p>
+                Method:<select name="grayscaleMethod" class="method" onchange="checkDecompose(this)">
+                    <option value="average">Average</option>
+                    <option value="lightness">Lightness</option>
+                    <option value="luminosity">Luminosity</option>
+                    <option value="decompose">Decompose</option>
+                </select>
+            </p>
+            <p style="display:none">
+                Decompose:<select name="grayscaleDecompose" class="decompose">
+                    <option value="maximum">Maximum</option>
+                    <option value="minimum">Minimum</option>
+                </select>
+            </p>
+        </form>
+        <form name="posterize" class="posterizeControls" style="display:none;">
+            Levels: <input class='levels' type="range" min="1" step="1" max="16"
+                           oninput="updatePosterizeLevelsOutput(this)" value="8">
+            <p class="levelOutput">8</p>
+        </form>
+        <form name="glitch" class="glitchControls" style="display:none;">
+            Grouping: <input class='grouping' type="range" min="1" step="1" max="100"
+                             oninput="updateGlitchLevelsOutput(this)" value="20">
+            <p class="groupingOutput">20</p>
+        </form>
+    </div>
+    <button type="button" id="addFilter" onclick="addFilter()">Add Filter</button>
+    <button type="button" id="applyFilters" onclick="applyFilters()">Apply Filters</button>
 </div>
 <script type='text/javascript' src='modiphy.js'></script>
 <script type="text/javascript">
     var img;
     var x;
     var d;
-    var divisorOutput = document.getElementById("divisor");
-    var functionCall = document.getElementById("functionCall");
+    var blankFilter = document.querySelector("#filterList .controls").cloneNode(true)
+
+    function updateFilterOptions(select) {
+        var form = select.parentNode;
+        var controls = form.querySelectorAll("form");
+
+        for(var i = 0; i < controls.length; i++) {
+            controls[i].style.display = "none";
+        }
+
+        form.querySelector("form[name='"+select.value+"']").style.display = "block";
+    }
+
+    function checkDecompose(select) {
+        var decompose = select.parentNode.parentNode.querySelector(".decompose");
+        if(select.value == "decompose"){
+            decompose.parentNode.style.display = "block";
+        } else {
+            decompose.parentNode.style.display = "none";
+        }
+    }
+
+    function addFilter(){
+        document.querySelector("#filterList").insertBefore(blankFilter.cloneNode(true),
+                document.getElementById("addFilter"));
+    }
+
+    function removeFilter(button){
+        var filter = button.parentNode;
+        document.getElementById("filterList").removeChild(filter);
+    }
+
+    function applyFilters() {
+
+        var controls = document.querySelectorAll("#filterList .controls");
+        var filters = [];
+
+        for(var i = 0; i < controls.length; i++) {
+            filters.push({
+                filter: controls[i].querySelector(".filterSel").value,
+                shape: controls[i].querySelector("input[name='shape']:checked").value,
+                method: controls[i].querySelector(".method").value,
+                divisor: controls[i].querySelector(".divisor").value,
+                decompose: controls[i].querySelector(".decompose").value,
+                levels: controls[i].querySelector(".levels").value,
+                grouping: controls[i].querySelector(".grouping").value,
+                debug: true
+            });
+        }
+
+        console.log(filters);
+        x.resetModiphications();
+        for(var i = 0; i < filters.length; i++){
+            x.render(filters[i]);
+        }
+
+    }
 
     window.addEventListener('load', init);
     function init() {
@@ -37,37 +127,21 @@
         x = new Modiphy(img);
     }
 
-    function updateDivisorOutput(range) {
+    function updatePixelDivisorOutput(range) {
         d = range.value;
-        divisorOutput.innerHTML = "Divisor: "+d;
+        range.parentNode.querySelector(".divisorOutput").innerHTML = "Divisor: "+d;
     }
 
-    function updateDivisor(range) {
-        if(document.getElementById("autoReset").checked){
-            x.resetModiphications().render({filter: {divisor: d}});
-            functionCall.innerHTML = "Function Call: x.resetModiphications().render({filter: {divisor: "+range.value+"});";
-        } else {
-            x.render({filter: {divisor: d}});
-            functionCall.innerHTML = "Function Call: x.render({filter: {divisor: "+range.value+"});";
-        }
+    function updatePosterizeLevelsOutput(range) {
+        l = range.value;
+        range.parentNode.querySelector(".levelOutput").innerHTML = l;
     }
 
-    var prevShape = null;
-    var radios = document.controls.shape;
-    for(var i = 0; i < radios.length; i++){
-        radios[i].onclick = function(){
-            if(this !== prevShape) {
-                prevShape = this;
-                if(document.getElementById("autoReset").checked) {
-                    x.resetModiphications().render({filter: {shape: this.value}});
-                    functionCall.innerHTML = "Function Call: x.resetModiphications().render({filter: {shape: "+this.value+"});";
-                } else {
-                    x.render({filter: {shape: this.value}});
-                    functionCall.innerHTML = "Function Call: x.render({filter: {shape: "+this.value+"});";
-                }
-            }
-        }
+    function updateGlitchLevelsOutput(range) {
+        g = range.value;
+        range.parentNode.querySelector(".groupingOutput").innerHTML = g;
     }
+
 </script>
 </body>
 </html>

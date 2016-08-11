@@ -30,18 +30,18 @@
         return;
     }
 
-    //TODO: Implement filter stacking?? Grayscale and pixelate?
+    //TODO: Simplify filter stacking by possibly passing through a .filters option all the filters wanted rather than having to specify .render in multiple chains
     function Modiphy(img, options) {
         this.img = img;
         this.options = {            //Set the default options for a Modiphy object
-            filter: {               //Filter is an object itself with a name, method, and shape
-                name: "pixel",          //The name of the filter
-                method: "quick",        //The algorithm or method to use, if applicable
-                shape: "square",        //The shape of the output pixels for pixelate
-                divisor: 50,            //Determins the block size in pixelate
-                decompose: "maximum"    //Decompositing algorithm to use
-            },
-            debug: true
+            filter: "pixel",        //The name of the filter
+            method: "quick",        //The algorithm or method to use, if applicable
+            shape: "square",        //The shape of the output pixels for pixelate
+            divisor: 50,            //Determins the block size in pixelate
+            decompose: "maximum",   //Decompositing algorithm to use
+            levels: 8,              //The number of "gaps" we'll keep in posterize
+            grouping: 20,           //The number of pixel rows to shift at once in glitch
+            debug: false
         };
 
         var canvas = this.canvas = document.createElement("canvas");
@@ -73,13 +73,13 @@
      Merge options passed into this.render with our default options
      */
     Modiphy.prototype.updateOptions = function(options) {
-        if(options.filter) {
-            this.options.filter.name = options.filter.name || this.options.filter.name;
-            this.options.filter.shape = options.filter.shape || this.options.filter.shape;
-            this.options.filter.method = options.filter.method || this.options.filter.method;
-            this.options.filter.divisor = options.filter.divisor || this.options.filter.divisor;
-            this.options.filter.decompose = options.filter.decompose || this.options.filter.decompose;
-        }
+        this.options.filter = options.filter || this.options.filter;
+        this.options.shape = options.shape || this.options.shape;
+        this.options.method = options.method || this.options.method;
+        this.options.divisor = options.divisor || this.options.divisor;
+        this.options.decompose = options.decompose || this.options.decompose;
+        this.options.levels = options.levels || this.options.levels;
+        this.options.grouping = options.grouping || this.options.grouping;
         this.options.debug = options.debug || this.options.debug;
         return this;
     };
@@ -94,16 +94,27 @@
         this.ctx.drawImage(this.canvas, 0, 0);
 
         //Let's determine how we need to filter the image
-        switch(this.options.filter.name.toLowerCase()) {
+        switch(this.options.filter.toLowerCase()) {
             case "pixel":
                 pixelate.call(this);
                 break;
             case "grayscale":
                 grayscale.call(this);
                 break;
+            case "posterize":
+                posterize.call(this);
+                break;
+            case "glitch":
+                glitch.call(this);
+                break;
+            case "invert":
+                invertColors.call(this);
+                break;
+            case "channelrotate":
+                channelRotate.call(this);
+                break;
             default:
-                console.log("No filter or invalid filter given. Pixelating image by default");
-                pixelate.call(this);
+                console.error("No filter or invalid filter given.");
                 break;
         }
 
@@ -114,7 +125,7 @@
         this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
         this.ctx.drawImage(this.img, 0, 0);
         return this;
-    }
+    };
 
     /*
      Function called by render when filter == "pixel" to handle
@@ -123,7 +134,7 @@
     function pixelate() {
         //Determine how we need to pixelate the image whether by using
         //An average or using the quick pixelate cheating method
-        if(this.options.filter.method.toLowerCase() == "quick") {
+        if(this.options.method.toLowerCase() == "quick") {
             pixelateQuick.call(this);
         } else {
             pixelateAverage.call(this);
@@ -152,10 +163,13 @@
         //Clear the canvas and redraw the original image on top to clear out old data
         this.ctx.drawImage(this.canvas, 0, 0);
 
-        var divisor = this.options.filter.divisor;
+        var divisor = this.options.divisor;
         var pixelWidth = Math.ceil(this.img.width / divisor);
         var pixelHeight = Math.ceil(this.img.height / divisor);
         var radius = pixelWidth/2;
+        //TODO: Fix this to account for non-square dimensions
+        var diamond = pixelWidth / Math.SQRT2;
+        var halfDiamond = diamond / 2;
 
         var currX = 0, currY = 0;
 
@@ -175,10 +189,12 @@
             var rVal = (rSum / numPixels).toFixed();
             var gVal = (gSum / numPixels).toFixed();
             var bVal = (bSum / numPixels).toFixed();
+            var centroidX;
+            var centroidY;
 
             //Draw a new "pixel" in place with our average value
             this.ctx.fillStyle = "rgb("+rVal+", "+gVal+", "+bVal+")";
-            switch(this.options.filter.shape.toLowerCase()) {
+            switch(this.options.shape.toLowerCase()) {
                 case "circle":
                     this.ctx.clearRect(currX, currY, pixelWidth, pixelHeight); //Clear out this sector now that we don't need it
                     this.ctx.beginPath();
@@ -193,6 +209,20 @@
                     this.ctx.rotate(QUARTER_PI);
                     this.ctx.fillRect(-halfDiamond, -halfDiamond, diamond, diamond);
                     this.ctx.restore();
+                    break;
+                case "hex":
+                    this.ctx.clearRect(currX, currY, pixelWidth, pixelHeight);
+                    this.ctx.beginPath();
+                    centroidX = currX+(pixelWidth/2);
+                    centroidY = currY+(pixelHeight/2);
+                    this.ctx.moveTo(centroidX+(radius*Math.cos(0)), centroidY+(radius*Math.sin(0)));
+                    this.ctx.lineTo(centroidX+(radius*Math.cos(Math.PI/3)), centroidY+(radius*Math.sin(Math.PI/3)));
+                    this.ctx.lineTo(centroidX+(radius*Math.cos(2*Math.PI/3)), centroidY+(radius*Math.sin(2*Math.PI/3)));
+                    this.ctx.lineTo(centroidX+(radius*Math.cos(Math.PI)), centroidY+(radius*Math.sin(Math.PI)));
+                    this.ctx.lineTo(centroidX+(radius*Math.cos(4*Math.PI/3)), centroidY+(radius*Math.sin(4*Math.PI/3)));
+                    this.ctx.lineTo(centroidX+(radius*Math.cos(5*Math.PI/3)), centroidY+(radius*Math.sin(5*Math.PI/3)));
+                    this.ctx.closePath();
+                    this.ctx.fill();
                     break;
                 default: //square
                     this.ctx.fillRect(currX, currY, pixelWidth, pixelHeight);
@@ -235,15 +265,18 @@
 
         this.ctx.drawImage(this.canvas, 0, 0);
 
-        var divisor = this.options.filter.divisor;
+        var divisor = this.options.divisor;
         var pixelWidth = Math.ceil(this.img.width / divisor);
         var pixelHeight = Math.ceil(this.img.height / divisor);
         var radius = pixelWidth / 2;
 
         var currX = 0, currY = 0;
         var currentPixelBlock, cpi, rVal, gVal, bVal;
+        //TODO: Fix this to account for non-square dimensions
         var diamond = pixelWidth / Math.SQRT2;
         var halfDiamond = diamond / 2;
+        var centroidX;
+        var centroidY;
 
         for(var i = 0; i < Math.pow(divisor, 2); i++) {
             currentPixelBlock = this.ctx.getImageData(currX, currY, pixelWidth, pixelHeight).data;
@@ -254,7 +287,7 @@
 
 
             this.ctx.fillStyle = "rgb("+rVal+", "+gVal+", "+bVal+")";
-            switch(this.options.filter.shape.toLowerCase()) {
+            switch(this.options.shape.toLowerCase()) {
                 case "circle":
                     this.ctx.clearRect(currX, currY, pixelWidth, pixelHeight);
                     this.ctx.beginPath();
@@ -269,6 +302,20 @@
                     this.ctx.rotate(QUARTER_PI);
                     this.ctx.fillRect(-halfDiamond, -halfDiamond, diamond, diamond);
                     this.ctx.restore();
+                    break;
+                case "hex":
+                    this.ctx.clearRect(currX, currY, pixelWidth, pixelHeight);
+                    this.ctx.beginPath();
+                    centroidX = currX+(pixelWidth/2);
+                    centroidY = currY+(pixelHeight/2);
+                    this.ctx.moveTo(centroidX+(radius*Math.cos(0)), centroidY+(radius*Math.sin(0)));
+                    this.ctx.lineTo(centroidX+(radius*Math.cos(Math.PI/3)), centroidY+(radius*Math.sin(Math.PI/3)));
+                    this.ctx.lineTo(centroidX+(radius*Math.cos(2*Math.PI/3)), centroidY+(radius*Math.sin(2*Math.PI/3)));
+                    this.ctx.lineTo(centroidX+(radius*Math.cos(Math.PI)), centroidY+(radius*Math.sin(Math.PI)));
+                    this.ctx.lineTo(centroidX+(radius*Math.cos(4*Math.PI/3)), centroidY+(radius*Math.sin(4*Math.PI/3)));
+                    this.ctx.lineTo(centroidX+(radius*Math.cos(5*Math.PI/3)), centroidY+(radius*Math.sin(5*Math.PI/3)));
+                    this.ctx.closePath();
+                    this.ctx.fill();
                     break;
                 default: //square
                     this.ctx.fillRect(currX, currY, pixelWidth, pixelHeight);
@@ -292,7 +339,7 @@
      */
     function grayscale() {
         //Determine which method to use grayscale the image
-        switch(this.options.filter.method.toLowerCase()){
+        switch(this.options.method.toLowerCase()){
             case "average":
                 grayscaleAvg.call(this);
                 break;
@@ -314,9 +361,7 @@
     }
 
     /*!
-        The Average method for grayscale takes the average of the RGB values in
-        each pixel and sets each pixel back to that average. A run-of-the-mill
-        grayscale algorithm
+        The tried and true method for grayscale. Boring, but gets the job done.
      */
     function grayscaleAvg(){
         if(this.drawing === true) {
@@ -350,9 +395,94 @@
     }
 
     /*!
-        The lightness method takes into account only the most prominent and
-        least prominent colors which tends to lend itself to greater contrast
-        compared to Average. This could also be called "desaturation"
+        The luminosity method weighs each RGB value based on human perception.
+        The coefficients for this method are as given by the CCIR Rec. 601 which
+        you can read more about here:
+
+        https://en.wikipedia.org/wiki/Luma_%28video%29#Rec._601_luma_versus_Rec._709_luma_coefficients
+     */
+    function grayscaleLumin(){
+        if(this.drawing === true) {
+            return;
+        }
+
+        this.drawing = true;
+        var start = new Date().getTime();
+
+        this.ctx.drawImage(this.canvas, 0, 0);
+
+        var pixelData = this.ctx.getImageData(0, 0, this.canvas.width, this.canvas.height);
+
+        var r, g, b;
+        for(var i = 0; i < pixelData.data.length; i+=4){
+            r = pixelData.data[ i   ];
+            g = pixelData.data[ i+1 ];
+            b = pixelData.data[ i+2 ];
+
+            pixelData.data[i] = pixelData.data[i+1] = pixelData.data[i+2] = (0.299 * r) + (0.587 * g) + (0.114 * b);
+        }
+
+        this.ctx.putImageData(pixelData, 0, 0);
+
+        var end = new Date().getTime();
+        this.drawing = false;
+
+        if(this.options.debug === true){
+            console.log("Filter: Grayscale\nMethod: Luminosity\nExecution Time: "+(end - start)+"ms");
+        }
+    }
+
+    /*!
+        De-composition of an image means separating the RGB values (this can technically
+        be done with any colorspace but since pixels are in RGB already...) into their
+        component channels. This method is adapted as described in many places but initially
+        Tanner Helland in the link below. Maximum or minimum decomposition involves setting
+        each pixel to either the most important or least important (respectively) channel in
+        the color space.
+
+        http://www.tannerhelland.com/3643/grayscale-image-algorithm-vb6/
+     */
+    function grayscaleDecompose(){
+        if(this.drawing === true) {
+            return;
+        }
+
+        this.drawing = true;
+        var start = new Date().getTime();
+
+        this.ctx.drawImage(this.canvas, 0, 0);
+
+        var pixelData = this.ctx.getImageData(0, 0, this.canvas.width, this.canvas.height);
+
+        var r, g, b;
+        for(var i = 0; i < pixelData.data.length; i+=4){
+            r = pixelData.data[ i   ];
+            g = pixelData.data[ i+1 ];
+            b = pixelData.data[ i+2 ];
+
+            if(this.options.decompose.toLowerCase() == "maximum")
+                pixelData.data[i] = pixelData.data[i+1] = pixelData.data[i+2] = Math.max(r, g, b);
+            else
+                pixelData.data[i] = pixelData.data[i+1] = pixelData.data[i+2] = Math.min(r, g, b);
+
+        }
+
+        this.ctx.putImageData(pixelData, 0, 0);
+
+        var end = new Date().getTime();
+        this.drawing = false;
+
+        if(this.options.debug === true){
+            console.log("Filter: Grayscale\nMethod: Luminosity\nExecution Time: "+(end - start)+"ms");
+        }
+    }
+
+    /*!
+         The lightness method is here as described by John D. Cook (and GIMP) which
+         essentially modifies the average method to only take into account the
+         most and least prominent channels in the color space.
+
+        http://www.johndcook.com/blog/2009/08/24/algorithms-convert-color-grayscale/
      */
     function grayscaleLight(){
         if(this.drawing === true) {
@@ -385,12 +515,14 @@
         }
     }
 
-    /*!
-        The luminosity method weights each RGB value based on human perception.
-        Since humans are more sensitive to green values, the G value is weighted
-        higher in the end lending itself to a more "realistic" grayscale.
+
+    /*
+        Separate each color channel into a number of even gaps in order to
+        reduce the number of colors in the final image. Outcome should be
+        basically like the posterize filter in Photoshop or what happens
+        when saving a GIF with a low number of colors.
      */
-    function grayscaleLumin(){
+    function posterize(){
         if(this.drawing === true) {
             return;
         }
@@ -402,13 +534,11 @@
 
         var pixelData = this.ctx.getImageData(0, 0, this.canvas.width, this.canvas.height);
 
-        var r, g, b;
+        var g = 256 / this.options.levels;
         for(var i = 0; i < pixelData.data.length; i+=4){
-            r = pixelData.data[ i   ];
-            g = pixelData.data[ i+1 ];
-            b = pixelData.data[ i+2 ];
-
-            pixelData.data[i] = pixelData.data[i+1] = pixelData.data[i+2] = (0.21 * r) + (0.72 * g) + (0.07 * b);
+            pixelData.data[ i   ] = Math.round(pixelData.data[ i   ]/g) * g;
+            pixelData.data[ i+1 ] = Math.round(pixelData.data[ i+1 ]/g) * g;
+            pixelData.data[ i+2 ] = Math.round(pixelData.data[ i+2 ]/g) * g;
         }
 
         this.ctx.putImageData(pixelData, 0, 0);
@@ -417,19 +547,17 @@
         this.drawing = false;
 
         if(this.options.debug === true){
-            console.log("Filter: Grayscale\nMethod: Luminosity\nExecution Time: "+(end - start)+"ms");
+            console.log("Filter: Posterize\nLevels: "+this.options.levels+"\nExecution Time: "+(end - start)+"ms");
         }
     }
 
-    /*!
-        De-composition of the image means determining which RGB channel is most
-        important for a pixel and then setting all channels to that value.
-
-        Combines with the grayscaleDecompose option to be either maximum or minimum
-        E.g. a pixel with RGB(10, 20, 30) will end up (30, 30, 30) under maximum or
-            (10, 10, 10) under minimum.
+    //TODO: See what happens if we do multiple passes with decreasing groupings and shift lengths each time
+    /*
+        Shift rows of pixels in the image by a random value relative to the
+        size of the image in alternating directions to make a cool "glitchy"
+        style look.
      */
-    function grayscaleDecompose(){
+    function glitch(){
         if(this.drawing === true) {
             return;
         }
@@ -439,31 +567,123 @@
 
         this.ctx.drawImage(this.canvas, 0, 0);
 
-        var pixelData = this.ctx.getImageData(0, 0, this.canvas.width, this.canvas.height);
+        var dir = true;
+        var tmp = null;
+        //i == currY.
+        //Loop through every row and manipulate the imageData for this row
+        for(var i = 0; i < this.canvas.width; i++) {
+            var pixelData = this.ctx.getImageData(0, i, this.canvas.width, 1); //get a single pixel row
+            if(dir){
+                //Repeat this ten times to shift pixels down ten
+                for(var y = 0; y < 9; y++) {
+                    //Shift every pixel down one...When we hit the end, let's use our first pixel's value
+                    for(var x = 0; x < pixelData.data.length-4; x+=4) {
+                        pixelData.data[ x   ] = pixelData.data[ x+4 ]; //R of pixel
+                        pixelData.data[ x+1 ] = pixelData.data[ x+5 ]; //B of pixel
+                        pixelData.data[ x+2 ] = pixelData.data[ x+6 ]; //G of pixel
+                        pixelData.data[ x+3 ] = pixelData.data[ x+7 ]; //A of pixel
+                    }
+                }
+            }
+            if(i%this.options.grouping === 0) dir = !dir;
 
-        var r, g, b;
-        for(var i = 0; i < pixelData.data.length; i+=4){
-            r = pixelData.data[ i   ];
-            g = pixelData.data[ i+1 ];
-            b = pixelData.data[ i+2 ];
-
-            if(this.options.filter.decompose.toLowerCase() == "maximum")
-                pixelData.data[i] = pixelData.data[i+1] = pixelData.data[i+2] = Math.max(r, g, b);
-            else
-                pixelData.data[i] = pixelData.data[i+1] = pixelData.data[i+2] = Math.min(r, g, b);
-
+            this.ctx.putImageData(pixelData, 0, i);
         }
 
-        this.ctx.putImageData(pixelData, 0, 0);
+        // var pixelData = this.ctx.getImageData(0, 0, this.canvas.width, this.canvas.height);
+        // var indicesPerRow = pixelData.data.length / this.canvas.width;
+        //
+        // var dir = true;
+        // //Loop over every row in the image horizontally
+        // for(var i = 0; i < pixelData.data.length; i+=indicesPerRow){
+        //     //i should be the starting index of the row.
+        //     //i + rowLength is the last index of the row.
+        //     if(dir) {
+        //         //Shift these rows to the left by stealing some pixels off the front and placing them at the end of
+        //         // this column
+        //
+        //         //TypedArray here .set allows you to read from an array values in place into the array but it
+        //         // writes over what was there so we need to slice out the first portion of the array (from i to
+        //         // i+rowLength-numPixelsToShift and .set that into the array at index 0
+        //         pixelData.data.set(pixelData.data.slice(i, i+indicesPerRow-(4*100)));
+        //         dir = false;
+        //     } else {
+        //         //Shift these rows to the right
+        //         dir = true;
+        //     }
+        // }
+        //
+        // this.ctx.putImageData(pixelData, 0, 0);
 
         var end = new Date().getTime();
         this.drawing = false;
 
         if(this.options.debug === true){
-            console.log("Filter: Grayscale\nMethod: Luminosity\nExecution Time: "+(end - start)+"ms");
+            console.log("Filter: Glitch\nGrouping: "+this.options.grouping+"\nExecution Time: "+(end - start)+"ms");
         }
     }
 
+    /*
+        Invert all the colors in the image by setting each channel to 255 - V where V is the current value
+     */
+    function invertColors() {
+        if(this.drawing === true) {
+            return;
+        }
+
+        this.drawing = true;
+        var start = new Date().getTime();
+        this.ctx.drawImage(this.canvas, 0, 0);
+        var pixelData = this.ctx.getImageData(0, 0, this.canvas.width, this.canvas.height);
+
+        for(var i = 0; i < pixelData.data.length; i+=4){
+            pixelData.data[ i   ] = 255 - pixelData.data[ i   ];
+            pixelData.data[ i+1 ] = 255 - pixelData.data[ i+1 ];
+            pixelData.data[ i+2 ] = 255 - pixelData.data[ i+2 ];
+        }
+
+        this.ctx.putImageData(pixelData, 0, 0);
+        var end = new Date().getTime();
+        this.drawing = false;
+
+        if(this.options.debug === true){
+            console.log("Filter: Invert\nExecution Time: "+(end - start)+"ms");
+        }
+    }
+
+    /*
+        Rotate the color channels clockwise to see what happens. R -> G, G -> B, B ->R
+     */
+    function channelRotate() {
+        if(this.drawing === true) {
+            return;
+        }
+
+        this.drawing = true;
+        var start = new Date().getTime();
+        this.ctx.drawImage(this.canvas, 0, 0);
+        var pixelData = this.ctx.getImageData(0, 0, this.canvas.width, this.canvas.height);
+
+        var r;
+        var g;
+        var b;
+        for(var i = 0; i < pixelData.data.length; i+=4){
+            r = pixelData.data[ i   ];
+            g = pixelData.data[ i+1 ];
+            b = pixelData.data[ i+2 ];
+            pixelData.data[ i   ] = b;
+            pixelData.data[ i+1 ] = r;
+            pixelData.data[ i+2 ] = g;
+        }
+
+        this.ctx.putImageData(pixelData, 0, 0);
+        var end = new Date().getTime();
+        this.drawing = false;
+
+        if(this.options.debug === true){
+            console.log("Filter: Channel Rotate\nExecution Time: "+(end - start)+"ms");
+        }
+    }
 
     HTMLImageElement.prototype.Modiphy = function( options ) {
         return new Modiphy(this, options);

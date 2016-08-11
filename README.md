@@ -23,12 +23,10 @@ Use the library by grabbing your image element and creating a new Modiphy object
 //Ensure the image has loaded using addEventListener or some other method before attempting to Modiphy it
 var img = document.getElementById("image1");
 var filtered = new Modiphy(img, {
-    filter: {
-        name: "pixel",
-        method: "quick",
-        shape: "square"
-        divisor: 50
-    },
+    filter: "pixel",
+    method: "quick",
+    shape: "square"
+    divisor: 50,
     debug: false
 });
 ```
@@ -39,56 +37,58 @@ The above line can also be rewritten as ` filtered = new Modiphy(img) ` since th
 After a Modiphy object has been created, you can change options and recreate it. The below line will reset the image back to the original input and then re-run the method for pixelation to use the Average and divide into 100 even pixels instead of 50.
 ``` js
 filtered.resetModiphications().render({
-    filter: {
-        method: "average",
-        divisor: 100
-    }
+    method: "average",
+    divisor: 100
 });
 ```
-If `resetModiphications()` is not run before another render, then modifications happen in place. This allows us to "stack" filters on top of each other like `filtered.render({filter: {name: "grayscale"}).render({filter:{name:"pixel"}})` in order to turn the image to black and white and then pixelating it!
+If `resetModiphications()` is not run before another render, then modifications happen in place. This allows us to "stack" filters on top of each other like `filtered.render({filter: "grayscale"}).render({filter: "pixel"})` in order to turn the image to black and white and then pixelate it!
 ## Options
 The options that can be passed to Modiphy are as follows:
-``` 
-filter:     (object)    An object which carries information about the method to be used
-        {
-            name:   (string)    The type of filter to use.
-            method: (string)    The algorithm used in processing the image. 
-            divisor:(int)       For pixel filter, determines size of output pixels
-            shape:  (string)    For pixel filter, the shape of the output pixels. 
-        }
-        
-debug:      (boolean)   Defaults to false. Specifies whether verbose output should be output
-                        to the console
-```
+
+| param | type | default | description |
+|---|---|---|---|
+|filter| `string` |`"posterize"` | The type of filter to use |
+|method| `string` | `"quick"` | The algorithm used in processing the image. |
+|divisor|`int`| `50` | For pixel filter, determines size of output pixels |
+|shape|`string`| `"square"` |For pixel filter, the shape of the output pixels.|
+|decompose|`string`| `"maximum"` |For grayscale decompose method, whether to decompose the maximum or minimum |
+|levels|`int`| `8` |For posterize filter, the number of allowed colors per channel.|
+|grouping|`int`| `20` |For glitch filter, the number of rows to be shifted per direction.|
+|debug|`boolean`| `false` | Whether verbose output should be logged to the console.|
 
 Currently, the following filter options are supported.
-```
-name: "pixel"   Pixelates the image in a number of different ways
-   method: 
-        "quick"         (default) A quick and dirty way which simply chooses the center pixel 
-                        of a given block and uses that as the color. Looks accurate but processes
-                        much faster than other methods
-        "average"       A more mathematically accurate algorithm which calculates the average RGB 
-                        values for each pixel in the block. Takes more processing time, but if 
-                        you need an accurate pixelate, this will be your go-to.
-                        
-   divisor:     The number of even divisions an image will be pixelated into. Defaults to 50 
-                so, for example, a 500x500 image would by default be tiled into 10x10 "pixels"
-   shape:       The shape of the output pixels. By default, this is squares, but "circle" and 
-                "diamond" options are also supported. Working on more options for this, like a 
-                hexagon output, or triangular output.
-                
-name: "grayscale"   Just like it says on the tin. Different methods for grayscaling.
-    method:
-        "average"       The quick and dirty way to grayscale by averaging the RGB channels of
-                        each pixel. Easiest, but can tend to lose contrast.
-        "lightness"     A.k.a desaturation. Another method that keeps contrast better.
-        "luminosity"    A more "photo-realistic" algorithm that accounts for the fact
-                        that humans perceive Green more readily than Red or Blue.
-        "decompose"     De-composition involves setting each pixel to either the Max or Min 
-                        of the individial RGB channels. Usually used for artistic effect. This
-                        method to be used in conjuction with the filter.decompose setting descibed below
-    decompose:  
-        "maximum"       When method is "decompose" this will use Maximum Decomposition
-        "minimum"       (default) this will use Minimum Decomposition 
-```
+
+####Pixelate
+Pixelates an image similar to Photoshop's Pixelate filter
+
+|parameter|values|
+|---|---|
+|`filter`|`"pixel"`|
+|`method`|`"quick", "average"`|
+|`divisor`|`Any number greater than 1.`|
+|`shape`| `"square", "circle", "diamond", "hex"`|
+Though, keep in mind that more complicated shapes (those not built in to the canvas API by default) may take longer to render. This is something I'd like to improve on, but it is what it is for the moment.
+
+####Grayscale
+Convert an image to black and white using various methods for differing results and artistic effects.
+
+|parameter|values|
+|---|---|
+|`filter`|`"grayscale"`|
+|`method`|`"average", "lightness", "luminosity", "decompose"`|
+|`decompose`|`"maximum", "minimum"`|
+|`shape`| `"square", "circle", "diamond"`|
+####Posterize
+Similar to Photoshop's posterize filter or the effect that happens when saving an image like a .gif with a lower number of colors. Limit the available colors to an image to give it an old-school poster like effect.
+
+|parameter|values|
+|---|---|
+|`filter`|`posterize`|
+|`levels`|`Any positive number.`|
+####Glitch
+Alternatingly shift horizontal rows of pixels left and right to create interesting "glitch" effects
+
+|parameter|values|
+|---|---|
+|`filter`|`glitch`|
+|`grouping`|`Any positive number.`|
