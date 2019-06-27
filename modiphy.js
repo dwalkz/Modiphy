@@ -1,6 +1,6 @@
 /*!
  Library: Modiphy
- Author: David Gormley
+ Author: David Bott
  Date: 2016-08-06T12:22AM
  Version: 0.6.3
 
