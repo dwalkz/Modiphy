@@ -9,11 +9,11 @@
  HTML5 Canvas API to get and modify pixel data in different ways.
 
  This library is primarily an educational exercise but is released
- under the MIT License (Copyright 2016 David Gormley) and provided
- as is for use. Suggestions welcome at my github:
- https://github.com/dwalkz/Modiphy
+ under the MIT License and provided as is for use. 
+ 
+ Suggestions welcome at my github: https://github.com/dwalkz/Modiphy
  */
-(function(window, undefined){
+(function (window, undefined) {
     'use strict';
 
     var version = "0.6.3";
@@ -26,7 +26,7 @@
     var canvas = document.createElement("canvas");
     var canvasSupport = canvas.getContext && canvas.getContext("2d");
     //If we can't use the canvas, Modiphy won't be able to do anything
-    if(!canvasSupport) {
+    if (!canvasSupport) {
         return;
     }
 
@@ -41,6 +41,7 @@
             decompose: "maximum",   //Decompositing algorithm to use
             levels: 8,              //The number of "gaps" we'll keep in posterize
             grouping: 20,           //The number of pixel rows to shift at once in glitch
+            autoRender: true,       //Whether to automatically render on generation
             debug: false
         };
 
@@ -59,12 +60,14 @@
         this.ctx.drawImage(this.img, 0, 0);
 
         //Replace the image with a canvas
-        img.parentNode.replaceChild(canvas, img);
+        if (img.parentNode !== undefined && img.parentNode !== null) {
+            img.parentNode.replaceChild(canvas, img);
+        }
 
-        this.render( options );     //Render (or re-render) the image with a number of options
+        this.render(options);     //Render (or re-render) the image with a number of options
     }
 
-    Modiphy.prototype.about = function(){
+    Modiphy.prototype.about = function () {
         alert("Modiphy is currently in development version " + version);
         return this;
     };
@@ -72,29 +75,36 @@
     /*
      Merge options passed into this.render with our default options
      */
-    Modiphy.prototype.updateOptions = function(options) {
-        this.options.filter = options.filter || this.options.filter;
-        this.options.shape = options.shape || this.options.shape;
-        this.options.method = options.method || this.options.method;
-        this.options.divisor = options.divisor || this.options.divisor;
-        this.options.decompose = options.decompose || this.options.decompose;
-        this.options.levels = options.levels || this.options.levels;
-        this.options.grouping = options.grouping || this.options.grouping;
-        this.options.debug = options.debug || this.options.debug;
+    Modiphy.prototype.updateOptions = function (options) {
+        this.options.filter = empty(options.filter) ? this.options.filter : options.filter;
+        this.options.shape = empty(options.shape) ? this.options.shape : options.shape;
+        this.options.method = empty(options.method) ? this.options.method : options.method;
+        this.options.divisor = empty(options.divisor) ? this.options.divisor : options.divisor;
+        this.options.decompose = empty(options.decompose) ? this.options.decompose : options.decompose;
+        this.options.levels = empty(options.levels) ? this.options.levels : options.levels;
+        this.options.grouping = empty(options.grouping) ? this.options.grouping : options.grouping;
+        this.options.debug = empty(options.debug) ? this.options.debug : options.debug;
+        this.options.autoRender = empty(options.autoRender) ? this.options.autoRender : options.autoRender;
         return this;
     };
 
-    Modiphy.prototype.render = function( options ) {
-        if(options)
+    function empty(value) {
+        return value === undefined || value === null || value === "" || value.length === 0;
+    }
+
+    Modiphy.prototype.render = function (options) {
+        if (options)
             this.updateOptions(options);
         else
             this.updateOptions({});
+
+        if (!this.options.autoRender) { return false; }
 
         //Draw the image on our canvas
         this.ctx.drawImage(this.canvas, 0, 0);
 
         //Let's determine how we need to filter the image
-        switch(this.options.filter.toLowerCase()) {
+        switch (this.options.filter.toLowerCase()) {
             case "pixel":
                 pixelate.call(this);
                 break;
@@ -121,11 +131,155 @@
         return this;
     };
 
-    Modiphy.prototype.resetModiphications = function() {
+    Modiphy.prototype.brightness = function (percentage) {
+        setBrightness.call(this, percentage);
+        return this;
+    };
+
+    Modiphy.prototype.contrast = function (percentage) {
+        setContrast.call(this, percentage);
+        return this;
+    };
+
+    Modiphy.prototype.resetModiphications = function () {
         this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
         this.ctx.drawImage(this.img, 0, 0);
         return this;
     };
+
+    Modiphy.prototype.export = function () {
+        return this.canvas.toDataURL();
+    };
+
+    /*
+     * Handle setting the brightness by an additional percentage modifier between -100 and +100%
+     * 
+     */
+    function setBrightness(percent) {
+        if (this.drawing === true) {
+            return;
+        }
+
+        this.drawing = true;
+        var start = new Date().getTime();
+
+        this.ctx.drawImage(this.canvas, 0, 0);
+
+        var pixelData = this.ctx.getImageData(0, 0, this.canvas.width, this.canvas.height);
+
+        var r = [],
+            g = [],
+            b = [];
+        for (var i = 0; i < pixelData.data.length; i += 4) {
+            r[i] = pixelData.data[i];
+            g[i] = pixelData.data[i + 1];
+            b[i] = pixelData.data[i + 2];
+        }
+
+        var avgR = r.reduce(function (a, b) { return a + b; }, 0) / r.length;
+        var avgG = g.reduce(function (a, b) { return a + b; }, 0) / g.length;
+        var avgB = b.reduce(function (a, b) { return a + b; }, 0) / b.length;
+
+        var distR = (255 - avgR) * (percent / 100);
+        var distG = (255 - avgG) * (percent / 100);
+        var distB = (255 - avgB) * (percent / 100);
+
+        for (i = 0; i < pixelData.data.length; i += 4) {
+            r = pixelData.data[i] + distR;
+            g = pixelData.data[i + 1] + distG;
+            b = pixelData.data[i + 2] + distB;
+            if (r > 255) {
+                r = 255;
+            }
+            if (g > 255) {
+                g = 255;
+            }
+            if (b > 255) {
+                b = 255;
+            }
+            if (r < 0) {
+                r = 0;
+            }
+            if (g < 0) {
+                g = 0;
+            }
+            if (b < 0) {
+                b = 0;
+            }
+
+            pixelData.data[i] = r;
+            pixelData.data[i + 1] = g;
+            pixelData.data[i + 2] = b;
+        }
+
+        this.ctx.putImageData(pixelData, 0, 0);
+
+        var end = new Date().getTime();
+        this.drawing = false;
+
+        if (this.options.debug === true) {
+            console.log("Filter: Brightness\nValue: " + percent + "\nExecution Time: " + (end - start) + "ms");
+        }
+    }
+
+    /*
+     * Handle setting the contrast of the image by an additional percentage modifier between -100 and +100%
+     */
+    function setContrast(percent) {
+        if (this.drawing === true) {
+            return;
+        }
+
+        this.drawing = true;
+        var start = new Date().getTime();
+
+        this.ctx.drawImage(this.canvas, 0, 0);
+
+        var pixelData = this.ctx.getImageData(0, 0, this.canvas.width, this.canvas.height);
+        //Dim decimalContrast As Decimal = (dbCdec(Contrast) / 100.0) + 1.0 'convert it to a decimal and shift range from 0 to 2
+        //Dim intercept As Decimal = 128 * (1 - decimalContrast)
+        var contrast = (percent / 100) + 1.0;
+        var intercept = 128 * (1 - contrast);
+
+        var r, g, b;
+        for (var i = 0; i < pixelData.data.length; i += 4) {
+            r = pixelData.data[i] * contrast + intercept;
+            g = pixelData.data[i + 1] * contrast + intercept;
+            b = pixelData.data[i + 2] * contrast + intercept;
+            if (r > 255) {
+                r = 255;
+            }
+            if (g > 255) {
+                g = 255;
+            }
+            if (b > 255) {
+                b = 255;
+            }
+            if (r < 0) {
+                r = 0;
+            }
+            if (g < 0) {
+                g = 0;
+            }
+            if (b < 0) {
+                b = 0;
+            }
+
+            pixelData.data[i] = r;
+            pixelData.data[i + 1] = g;
+            pixelData.data[i + 2] = b;
+        }
+
+        this.ctx.putImageData(pixelData, 0, 0);
+
+        var end = new Date().getTime();
+        this.drawing = false;
+
+        if (this.options.debug === true) {
+            console.log("Filter: Contrast\nValue: " + percent + "\nExecution Time: " + (end - start) + "ms");
+        }
+    }
+
 
     /*
      Function called by render when filter == "pixel" to handle
@@ -134,7 +288,7 @@
     function pixelate() {
         //Determine how we need to pixelate the image whether by using
         //An average or using the quick pixelate cheating method
-        if(this.options.method.toLowerCase() == "quick") {
+        if (this.options.method.toLowerCase() == "quick") {
             pixelateQuick.call(this);
         } else {
             pixelateAverage.call(this);
@@ -151,7 +305,7 @@
      accurate because of it.
      */
     function pixelateAverage() {
-        if(this.drawing === true) {
+        if (this.drawing === true) {
             //If we're already drawing a new image, don't do anything. This prevents resource hogging
             //Since the "average" method can take quite a long time
             return;
@@ -166,7 +320,7 @@
         var divisor = this.options.divisor;
         var pixelWidth = Math.ceil(this.img.width / divisor);
         var pixelHeight = Math.ceil(this.img.height / divisor);
-        var radius = pixelWidth/2;
+        var radius = pixelWidth / 2;
         //TODO: Fix this to account for non-square dimensions
         var diamond = pixelWidth / Math.SQRT2;
         var halfDiamond = diamond / 2;
@@ -174,14 +328,14 @@
         var currX = 0, currY = 0;
 
         //Loop through the image and break it down into pixel blocks of a width and height
-        for(var i = 0; i < Math.pow(divisor, 2); i++) {
+        for (var i = 0; i < Math.pow(divisor, 2); i++) {
             var currentPixelBlock = this.ctx.getImageData(currX, currY, pixelWidth, pixelHeight).data;
             //Calculate the average values for this block
             var rSum = 0, gSum = 0, bSum = 0, numPixels = 0;
-            for(var n = 0; n < currentPixelBlock.length; n+=4) {
-                rSum += currentPixelBlock[ n   ];
-                gSum += currentPixelBlock[ n+1 ];
-                bSum += currentPixelBlock[ n+2 ];
+            for (var n = 0; n < currentPixelBlock.length; n += 4) {
+                rSum += currentPixelBlock[n];
+                gSum += currentPixelBlock[n + 1];
+                bSum += currentPixelBlock[n + 2];
                 //Alpha would be here, but it's not supported now because it's unnecessary
                 numPixels++;
             }
@@ -193,8 +347,8 @@
             var centroidY;
 
             //Draw a new "pixel" in place with our average value
-            this.ctx.fillStyle = "rgb("+rVal+", "+gVal+", "+bVal+")";
-            switch(this.options.shape.toLowerCase()) {
+            this.ctx.fillStyle = "rgb(" + rVal + ", " + gVal + ", " + bVal + ")";
+            switch (this.options.shape.toLowerCase()) {
                 case "circle":
                     this.ctx.clearRect(currX, currY, pixelWidth, pixelHeight); //Clear out this sector now that we don't need it
                     this.ctx.beginPath();
@@ -213,14 +367,14 @@
                 case "hex":
                     this.ctx.clearRect(currX, currY, pixelWidth, pixelHeight);
                     this.ctx.beginPath();
-                    centroidX = currX+(pixelWidth/2);
-                    centroidY = currY+(pixelHeight/2);
-                    this.ctx.moveTo(centroidX+(radius*Math.cos(0)), centroidY+(radius*Math.sin(0)));
-                    this.ctx.lineTo(centroidX+(radius*Math.cos(Math.PI/3)), centroidY+(radius*Math.sin(Math.PI/3)));
-                    this.ctx.lineTo(centroidX+(radius*Math.cos(2*Math.PI/3)), centroidY+(radius*Math.sin(2*Math.PI/3)));
-                    this.ctx.lineTo(centroidX+(radius*Math.cos(Math.PI)), centroidY+(radius*Math.sin(Math.PI)));
-                    this.ctx.lineTo(centroidX+(radius*Math.cos(4*Math.PI/3)), centroidY+(radius*Math.sin(4*Math.PI/3)));
-                    this.ctx.lineTo(centroidX+(radius*Math.cos(5*Math.PI/3)), centroidY+(radius*Math.sin(5*Math.PI/3)));
+                    centroidX = currX + (pixelWidth / 2);
+                    centroidY = currY + (pixelHeight / 2);
+                    this.ctx.moveTo(centroidX + (radius * Math.cos(0)), centroidY + (radius * Math.sin(0)));
+                    this.ctx.lineTo(centroidX + (radius * Math.cos(Math.PI / 3)), centroidY + (radius * Math.sin(Math.PI / 3)));
+                    this.ctx.lineTo(centroidX + (radius * Math.cos(2 * Math.PI / 3)), centroidY + (radius * Math.sin(2 * Math.PI / 3)));
+                    this.ctx.lineTo(centroidX + (radius * Math.cos(Math.PI)), centroidY + (radius * Math.sin(Math.PI)));
+                    this.ctx.lineTo(centroidX + (radius * Math.cos(4 * Math.PI / 3)), centroidY + (radius * Math.sin(4 * Math.PI / 3)));
+                    this.ctx.lineTo(centroidX + (radius * Math.cos(5 * Math.PI / 3)), centroidY + (radius * Math.sin(5 * Math.PI / 3)));
                     this.ctx.closePath();
                     this.ctx.fill();
                     break;
@@ -230,7 +384,7 @@
             }
 
             currX += pixelWidth;
-            if(currX >= this.img.width) {
+            if (currX >= this.img.width) {
                 currX = 0;
                 currY += pixelHeight
             }
@@ -239,8 +393,8 @@
         var end = new Date().getTime();
         this.drawing = false;
 
-        if(this.options.debug === true)
-            console.log("Filter: Pixel\nMethod: Average\nDivisor: "+divisor+"\nNumber of Blocks: "+Math.pow(divisor, 2)+"\nExecution Time: "+(end - start)+"ms");
+        if (this.options.debug === true)
+            console.log("Filter: Pixel\nMethod: Average\nDivisor: " + divisor + "\nNumber of Blocks: " + Math.pow(divisor, 2) + "\nExecution Time: " + (end - start) + "ms");
     }
 
     /*!
@@ -255,8 +409,8 @@
 
      This is the default pixelation method for speed
      */
-    function pixelateQuick(){
-        if(this.drawing === true) {
+    function pixelateQuick() {
+        if (this.drawing === true) {
             return;
         }
 
@@ -278,16 +432,16 @@
         var centroidX;
         var centroidY;
 
-        for(var i = 0; i < Math.pow(divisor, 2); i++) {
+        for (var i = 0; i < Math.pow(divisor, 2); i++) {
             currentPixelBlock = this.ctx.getImageData(currX, currY, pixelWidth, pixelHeight).data;
             cpi = (Math.floor(currentPixelBlock.length / 4 / 2) - 1) * 4;
-            rVal = currentPixelBlock[ cpi   ];
-            gVal = currentPixelBlock[ cpi+1 ];
-            bVal = currentPixelBlock[ cpi+2 ];
+            rVal = currentPixelBlock[cpi];
+            gVal = currentPixelBlock[cpi + 1];
+            bVal = currentPixelBlock[cpi + 2];
 
 
-            this.ctx.fillStyle = "rgb("+rVal+", "+gVal+", "+bVal+")";
-            switch(this.options.shape.toLowerCase()) {
+            this.ctx.fillStyle = "rgb(" + rVal + ", " + gVal + ", " + bVal + ")";
+            switch (this.options.shape.toLowerCase()) {
                 case "circle":
                     this.ctx.clearRect(currX, currY, pixelWidth, pixelHeight);
                     this.ctx.beginPath();
@@ -306,14 +460,14 @@
                 case "hex":
                     this.ctx.clearRect(currX, currY, pixelWidth, pixelHeight);
                     this.ctx.beginPath();
-                    centroidX = currX+(pixelWidth/2);
-                    centroidY = currY+(pixelHeight/2);
-                    this.ctx.moveTo(centroidX+(radius*Math.cos(0)), centroidY+(radius*Math.sin(0)));
-                    this.ctx.lineTo(centroidX+(radius*Math.cos(Math.PI/3)), centroidY+(radius*Math.sin(Math.PI/3)));
-                    this.ctx.lineTo(centroidX+(radius*Math.cos(2*Math.PI/3)), centroidY+(radius*Math.sin(2*Math.PI/3)));
-                    this.ctx.lineTo(centroidX+(radius*Math.cos(Math.PI)), centroidY+(radius*Math.sin(Math.PI)));
-                    this.ctx.lineTo(centroidX+(radius*Math.cos(4*Math.PI/3)), centroidY+(radius*Math.sin(4*Math.PI/3)));
-                    this.ctx.lineTo(centroidX+(radius*Math.cos(5*Math.PI/3)), centroidY+(radius*Math.sin(5*Math.PI/3)));
+                    centroidX = currX + (pixelWidth / 2);
+                    centroidY = currY + (pixelHeight / 2);
+                    this.ctx.moveTo(centroidX + (radius * Math.cos(0)), centroidY + (radius * Math.sin(0)));
+                    this.ctx.lineTo(centroidX + (radius * Math.cos(Math.PI / 3)), centroidY + (radius * Math.sin(Math.PI / 3)));
+                    this.ctx.lineTo(centroidX + (radius * Math.cos(2 * Math.PI / 3)), centroidY + (radius * Math.sin(2 * Math.PI / 3)));
+                    this.ctx.lineTo(centroidX + (radius * Math.cos(Math.PI)), centroidY + (radius * Math.sin(Math.PI)));
+                    this.ctx.lineTo(centroidX + (radius * Math.cos(4 * Math.PI / 3)), centroidY + (radius * Math.sin(4 * Math.PI / 3)));
+                    this.ctx.lineTo(centroidX + (radius * Math.cos(5 * Math.PI / 3)), centroidY + (radius * Math.sin(5 * Math.PI / 3)));
                     this.ctx.closePath();
                     this.ctx.fill();
                     break;
@@ -321,7 +475,7 @@
                     this.ctx.fillRect(currX, currY, pixelWidth, pixelHeight);
             }
             currX += pixelWidth;
-            if(currX >= this.img.width) {
+            if (currX >= this.img.width) {
                 currX = 0;
                 currY += pixelHeight
             }
@@ -330,8 +484,8 @@
         var end = new Date().getTime();
         this.drawing = false;
 
-        if(this.options.debug === true)
-            console.log("Filter: Pixel\nMethod: Quick\nDivisor: "+divisor+"\nNumber of Blocks: "+Math.pow(divisor, 2)+"\nExecution Time: "+(end - start)+"ms");
+        if (this.options.debug === true)
+            console.log("Filter: Pixel\nMethod: Quick\nDivisor: " + divisor + "\nNumber of Blocks: " + Math.pow(divisor, 2) + "\nExecution Time: " + (end - start) + "ms");
     }
 
     /*!
@@ -339,7 +493,7 @@
      */
     function grayscale() {
         //Determine which method to use grayscale the image
-        switch(this.options.method.toLowerCase()){
+        switch (this.options.method.toLowerCase()) {
             case "average":
                 grayscaleAvg.call(this);
                 break;
@@ -363,8 +517,8 @@
     /*!
         The tried and true method for grayscale. Boring, but gets the job done.
      */
-    function grayscaleAvg(){
-        if(this.drawing === true) {
+    function grayscaleAvg() {
+        if (this.drawing === true) {
             return;
         }
 
@@ -376,12 +530,12 @@
         var pixelData = this.ctx.getImageData(0, 0, this.canvas.width, this.canvas.height);
 
         var r, g, b;
-        for(var i = 0; i < pixelData.data.length; i+=4){
-            r = pixelData.data[ i   ];
-            g = pixelData.data[ i+1 ];
-            b = pixelData.data[ i+2 ];
+        for (var i = 0; i < pixelData.data.length; i += 4) {
+            r = pixelData.data[i];
+            g = pixelData.data[i + 1];
+            b = pixelData.data[i + 2];
 
-            pixelData.data[i] = pixelData.data[i+1] = pixelData.data[i+2] = (r+g+b)/3;
+            pixelData.data[i] = pixelData.data[i + 1] = pixelData.data[i + 2] = (r + g + b) / 3;
         }
 
         this.ctx.putImageData(pixelData, 0, 0);
@@ -389,8 +543,8 @@
         var end = new Date().getTime();
         this.drawing = false;
 
-        if(this.options.debug === true){
-            console.log("Filter: Grayscale\nMethod: Average\nExecution Time: "+(end - start)+"ms");
+        if (this.options.debug === true) {
+            console.log("Filter: Grayscale\nMethod: Average\nExecution Time: " + (end - start) + "ms");
         }
     }
 
@@ -401,8 +555,8 @@
 
         https://en.wikipedia.org/wiki/Luma_%28video%29#Rec._601_luma_versus_Rec._709_luma_coefficients
      */
-    function grayscaleLumin(){
-        if(this.drawing === true) {
+    function grayscaleLumin() {
+        if (this.drawing === true) {
             return;
         }
 
@@ -414,12 +568,12 @@
         var pixelData = this.ctx.getImageData(0, 0, this.canvas.width, this.canvas.height);
 
         var r, g, b;
-        for(var i = 0; i < pixelData.data.length; i+=4){
-            r = pixelData.data[ i   ];
-            g = pixelData.data[ i+1 ];
-            b = pixelData.data[ i+2 ];
+        for (var i = 0; i < pixelData.data.length; i += 4) {
+            r = pixelData.data[i];
+            g = pixelData.data[i + 1];
+            b = pixelData.data[i + 2];
 
-            pixelData.data[i] = pixelData.data[i+1] = pixelData.data[i+2] = (0.299 * r) + (0.587 * g) + (0.114 * b);
+            pixelData.data[i] = pixelData.data[i + 1] = pixelData.data[i + 2] = (0.299 * r) + (0.587 * g) + (0.114 * b);
         }
 
         this.ctx.putImageData(pixelData, 0, 0);
@@ -427,8 +581,8 @@
         var end = new Date().getTime();
         this.drawing = false;
 
-        if(this.options.debug === true){
-            console.log("Filter: Grayscale\nMethod: Luminosity\nExecution Time: "+(end - start)+"ms");
+        if (this.options.debug === true) {
+            console.log("Filter: Grayscale\nMethod: Luminosity\nExecution Time: " + (end - start) + "ms");
         }
     }
 
@@ -442,8 +596,8 @@
 
         http://www.tannerhelland.com/3643/grayscale-image-algorithm-vb6/
      */
-    function grayscaleDecompose(){
-        if(this.drawing === true) {
+    function grayscaleDecompose() {
+        if (this.drawing === true) {
             return;
         }
 
@@ -455,15 +609,15 @@
         var pixelData = this.ctx.getImageData(0, 0, this.canvas.width, this.canvas.height);
 
         var r, g, b;
-        for(var i = 0; i < pixelData.data.length; i+=4){
-            r = pixelData.data[ i   ];
-            g = pixelData.data[ i+1 ];
-            b = pixelData.data[ i+2 ];
+        for (var i = 0; i < pixelData.data.length; i += 4) {
+            r = pixelData.data[i];
+            g = pixelData.data[i + 1];
+            b = pixelData.data[i + 2];
 
-            if(this.options.decompose.toLowerCase() == "maximum")
-                pixelData.data[i] = pixelData.data[i+1] = pixelData.data[i+2] = Math.max(r, g, b);
+            if (this.options.decompose.toLowerCase() == "maximum")
+                pixelData.data[i] = pixelData.data[i + 1] = pixelData.data[i + 2] = Math.max(r, g, b);
             else
-                pixelData.data[i] = pixelData.data[i+1] = pixelData.data[i+2] = Math.min(r, g, b);
+                pixelData.data[i] = pixelData.data[i + 1] = pixelData.data[i + 2] = Math.min(r, g, b);
 
         }
 
@@ -472,8 +626,8 @@
         var end = new Date().getTime();
         this.drawing = false;
 
-        if(this.options.debug === true){
-            console.log("Filter: Grayscale\nMethod: Luminosity\nExecution Time: "+(end - start)+"ms");
+        if (this.options.debug === true) {
+            console.log("Filter: Grayscale\nMethod: Luminosity\nExecution Time: " + (end - start) + "ms");
         }
     }
 
@@ -484,8 +638,8 @@
 
         http://www.johndcook.com/blog/2009/08/24/algorithms-convert-color-grayscale/
      */
-    function grayscaleLight(){
-        if(this.drawing === true) {
+    function grayscaleLight() {
+        if (this.drawing === true) {
             return;
         }
 
@@ -497,12 +651,12 @@
         var pixelData = this.ctx.getImageData(0, 0, this.canvas.width, this.canvas.height);
 
         var r, g, b;
-        for(var i = 0; i < pixelData.data.length; i+=4){
-            r = pixelData.data[ i   ];
-            g = pixelData.data[ i+1 ];
-            b = pixelData.data[ i+2 ];
+        for (var i = 0; i < pixelData.data.length; i += 4) {
+            r = pixelData.data[i];
+            g = pixelData.data[i + 1];
+            b = pixelData.data[i + 2];
 
-            pixelData.data[i] = pixelData.data[i+1] = pixelData.data[i+2] = (Math.max(r, g, b) + Math.min(r, g, b))/2;
+            pixelData.data[i] = pixelData.data[i + 1] = pixelData.data[i + 2] = (Math.max(r, g, b) + Math.min(r, g, b)) / 2;
         }
 
         this.ctx.putImageData(pixelData, 0, 0);
@@ -510,8 +664,8 @@
         var end = new Date().getTime();
         this.drawing = false;
 
-        if(this.options.debug === true){
-            console.log("Filter: Grayscale\nMethod: Lightness\nExecution Time: "+(end - start)+"ms");
+        if (this.options.debug === true) {
+            console.log("Filter: Grayscale\nMethod: Lightness\nExecution Time: " + (end - start) + "ms");
         }
     }
 
@@ -522,8 +676,8 @@
         basically like the posterize filter in Photoshop or what happens
         when saving a GIF with a low number of colors.
      */
-    function posterize(){
-        if(this.drawing === true) {
+    function posterize() {
+        if (this.drawing === true) {
             return;
         }
 
@@ -535,10 +689,10 @@
         var pixelData = this.ctx.getImageData(0, 0, this.canvas.width, this.canvas.height);
 
         var g = 256 / this.options.levels;
-        for(var i = 0; i < pixelData.data.length; i+=4){
-            pixelData.data[ i   ] = Math.round(pixelData.data[ i   ]/g) * g;
-            pixelData.data[ i+1 ] = Math.round(pixelData.data[ i+1 ]/g) * g;
-            pixelData.data[ i+2 ] = Math.round(pixelData.data[ i+2 ]/g) * g;
+        for (var i = 0; i < pixelData.data.length; i += 4) {
+            pixelData.data[i] = Math.round(pixelData.data[i] / g) * g;
+            pixelData.data[i + 1] = Math.round(pixelData.data[i + 1] / g) * g;
+            pixelData.data[i + 2] = Math.round(pixelData.data[i + 2] / g) * g;
         }
 
         this.ctx.putImageData(pixelData, 0, 0);
@@ -546,8 +700,8 @@
         var end = new Date().getTime();
         this.drawing = false;
 
-        if(this.options.debug === true){
-            console.log("Filter: Posterize\nLevels: "+this.options.levels+"\nExecution Time: "+(end - start)+"ms");
+        if (this.options.debug === true) {
+            console.log("Filter: Posterize\nLevels: " + this.options.levels + "\nExecution Time: " + (end - start) + "ms");
         }
     }
 
@@ -557,8 +711,8 @@
         size of the image in alternating directions to make a cool "glitchy"
         style look.
      */
-    function glitch(){
-        if(this.drawing === true) {
+    function glitch() {
+        if (this.drawing === true) {
             return;
         }
 
@@ -571,21 +725,21 @@
         var tmp = null;
         //i == currY.
         //Loop through every row and manipulate the imageData for this row
-        for(var i = 0; i < this.canvas.width; i++) {
+        for (var i = 0; i < this.canvas.width; i++) {
             var pixelData = this.ctx.getImageData(0, i, this.canvas.width, 1); //get a single pixel row
-            if(dir){
+            if (dir) {
                 //Repeat this ten times to shift pixels down ten
-                for(var y = 0; y < 9; y++) {
+                for (var y = 0; y < 9; y++) {
                     //Shift every pixel down one...When we hit the end, let's use our first pixel's value
-                    for(var x = 0; x < pixelData.data.length-4; x+=4) {
-                        pixelData.data[ x   ] = pixelData.data[ x+4 ]; //R of pixel
-                        pixelData.data[ x+1 ] = pixelData.data[ x+5 ]; //B of pixel
-                        pixelData.data[ x+2 ] = pixelData.data[ x+6 ]; //G of pixel
-                        pixelData.data[ x+3 ] = pixelData.data[ x+7 ]; //A of pixel
+                    for (var x = 0; x < pixelData.data.length - 4; x += 4) {
+                        pixelData.data[x] = pixelData.data[x + 4]; //R of pixel
+                        pixelData.data[x + 1] = pixelData.data[x + 5]; //B of pixel
+                        pixelData.data[x + 2] = pixelData.data[x + 6]; //G of pixel
+                        pixelData.data[x + 3] = pixelData.data[x + 7]; //A of pixel
                     }
                 }
             }
-            if(i%this.options.grouping === 0) dir = !dir;
+            if (i % this.options.grouping === 0) dir = !dir;
 
             this.ctx.putImageData(pixelData, 0, i);
         }
@@ -618,8 +772,8 @@
         var end = new Date().getTime();
         this.drawing = false;
 
-        if(this.options.debug === true){
-            console.log("Filter: Glitch\nGrouping: "+this.options.grouping+"\nExecution Time: "+(end - start)+"ms");
+        if (this.options.debug === true) {
+            console.log("Filter: Glitch\nGrouping: " + this.options.grouping + "\nExecution Time: " + (end - start) + "ms");
         }
     }
 
@@ -627,7 +781,7 @@
         Invert all the colors in the image by setting each channel to 255 - V where V is the current value
      */
     function invertColors() {
-        if(this.drawing === true) {
+        if (this.drawing === true) {
             return;
         }
 
@@ -636,18 +790,18 @@
         this.ctx.drawImage(this.canvas, 0, 0);
         var pixelData = this.ctx.getImageData(0, 0, this.canvas.width, this.canvas.height);
 
-        for(var i = 0; i < pixelData.data.length; i+=4){
-            pixelData.data[ i   ] = 255 - pixelData.data[ i   ];
-            pixelData.data[ i+1 ] = 255 - pixelData.data[ i+1 ];
-            pixelData.data[ i+2 ] = 255 - pixelData.data[ i+2 ];
+        for (var i = 0; i < pixelData.data.length; i += 4) {
+            pixelData.data[i] = 255 - pixelData.data[i];
+            pixelData.data[i + 1] = 255 - pixelData.data[i + 1];
+            pixelData.data[i + 2] = 255 - pixelData.data[i + 2];
         }
 
         this.ctx.putImageData(pixelData, 0, 0);
         var end = new Date().getTime();
         this.drawing = false;
 
-        if(this.options.debug === true){
-            console.log("Filter: Invert\nExecution Time: "+(end - start)+"ms");
+        if (this.options.debug === true) {
+            console.log("Filter: Invert\nExecution Time: " + (end - start) + "ms");
         }
     }
 
@@ -655,7 +809,7 @@
         Rotate the color channels clockwise to see what happens. R -> G, G -> B, B ->R
      */
     function channelRotate() {
-        if(this.drawing === true) {
+        if (this.drawing === true) {
             return;
         }
 
@@ -667,25 +821,25 @@
         var r;
         var g;
         var b;
-        for(var i = 0; i < pixelData.data.length; i+=4){
-            r = pixelData.data[ i   ];
-            g = pixelData.data[ i+1 ];
-            b = pixelData.data[ i+2 ];
-            pixelData.data[ i   ] = b;
-            pixelData.data[ i+1 ] = r;
-            pixelData.data[ i+2 ] = g;
+        for (var i = 0; i < pixelData.data.length; i += 4) {
+            r = pixelData.data[i];
+            g = pixelData.data[i + 1];
+            b = pixelData.data[i + 2];
+            pixelData.data[i] = b;
+            pixelData.data[i + 1] = r;
+            pixelData.data[i + 2] = g;
         }
 
         this.ctx.putImageData(pixelData, 0, 0);
         var end = new Date().getTime();
         this.drawing = false;
 
-        if(this.options.debug === true){
-            console.log("Filter: Channel Rotate\nExecution Time: "+(end - start)+"ms");
+        if (this.options.debug === true) {
+            console.log("Filter: Channel Rotate\nExecution Time: " + (end - start) + "ms");
         }
     }
 
-    HTMLImageElement.prototype.Modiphy = function( options ) {
+    HTMLImageElement.prototype.Modiphy = function (options) {
         return new Modiphy(this, options);
     };
 
